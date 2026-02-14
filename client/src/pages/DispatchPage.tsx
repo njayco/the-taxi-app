@@ -119,7 +119,7 @@ export default function DispatchPage() {
   });
 
   useEffect(() => {
-    if (!authed || !mapToken || !mapContainerRef.current) return;
+    if (phase !== "dashboard" || !authed || !mapToken || !mapContainerRef.current) return;
     if (mapRef.current) return;
 
     mapboxgl.accessToken = mapToken;
@@ -138,7 +138,7 @@ export default function DispatchPage() {
       map.remove();
       mapRef.current = null;
     };
-  }, [authed, mapToken]);
+  }, [phase, authed, mapToken]);
 
   useEffect(() => {
     if (!mapRef.current) return;
