@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TaxiLogo } from "./TaxiLogo";
 
 interface SplashScreenProps {
@@ -9,17 +9,19 @@ interface SplashScreenProps {
 
 export function SplashScreen({ message, onComplete, duration = 1800 }: SplashScreenProps) {
   const [opacity, setOpacity] = useState(0);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     const fadeIn = setTimeout(() => setOpacity(1), 50);
     const fadeOut = setTimeout(() => setOpacity(0), duration - 400);
-    const done = setTimeout(onComplete, duration);
+    const done = setTimeout(() => onCompleteRef.current(), duration);
     return () => {
       clearTimeout(fadeIn);
       clearTimeout(fadeOut);
       clearTimeout(done);
     };
-  }, [onComplete, duration]);
+  }, [duration]);
 
   return (
     <div
