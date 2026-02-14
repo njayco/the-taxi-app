@@ -81,6 +81,10 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 - Driver page uses raw fetch for GPS location updates (every 5s)
 - Filters persist in URL query string (status, range, startDate, endDate)
 
+## Pricing Model
+- Starter: $99/driver/month (up to 25 drivers)
+- Professional: $69/driver/month (25+ drivers, volume savings)
+
 ## User Preferences
 - Mobile-first responsive design
 - Yellow/black taxi branding throughout
