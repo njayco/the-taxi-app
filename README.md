@@ -24,7 +24,9 @@ A hybrid taxi dispatch web application built for **The Taxi Company** (A Denoko 
 - Call details panel with full customer info, status management, and driver assignment
 - Assign/unassign live drivers to calls via dropdown
 - View driver list with last-seen timestamps and assigned call count badges
-- Driver details panel showing LIVE/OFFLINE status, trips assigned, and revenue generated
+- Driver details panel showing real-time LIVE/OFFLINE status, trips assigned, and revenue generated
+- Driver status uses single source of truth (live-polled data, not snapshots) with unified 15s online threshold
+- "Last seen" labels update every second in real time
 - Driver performance stats respect current filters (status + date range)
 - Auto-refreshing dashboard (3-second polling for drivers and calls)
 
