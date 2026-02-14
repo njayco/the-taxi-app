@@ -30,10 +30,11 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 - `POST /api/dispatch/login` - Dispatch login with passcode + dispatch code
 - `POST /api/driver/update-location` - Driver GPS update (every 5s)
 - `GET /api/driver/list?dispatchCode=...` - List drivers by dispatch code
-- `POST /api/calls/create` - Create call with Mapbox geocoding
+- `POST /api/calls/create` - Create call (accepts optional lat/lng from autocomplete, falls back to geocoding)
 - `GET /api/calls/list?dispatchCode=...` - List calls by dispatch code
 - `PATCH /api/calls/update-status` - Update call status (NEW/ASSIGNED/DONE)
-- `GET /api/mapbox-token` - Get Mapbox token for frontend
+- `GET /api/mapbox-token` - Get Mapbox public token for frontend
+- `GET /api/geocode/autocomplete?q=...` - Address autocomplete (US-only, proxies Mapbox Geocoding API)
 
 ## Design Theme
 - Taxi yellow (#FFDD00 / hsl(50, 100%, 50%)) background

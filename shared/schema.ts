@@ -35,6 +35,8 @@ export const createCallSchema = z.object({
   dispatchCode: z.string(),
   address: z.string().min(1, "Address is required"),
   notes: z.string().optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 });
 
 export const updateCallStatusSchema = z.object({

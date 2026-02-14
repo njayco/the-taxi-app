@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -8,6 +8,19 @@ import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type DispatchPhase = "splash" | "login" | "dashboard";
+
+interface AddressSuggestion {
+  place_name: string;
+  center: [number, number];
+  place_id: string;
+}
+
+interface SelectedAddress {
+  address: string;
+  lat: number;
+  lng: number;
+  placeId: string;
+}
 
 export default function DispatchPage() {
   const [phase, setPhase] = useState<DispatchPhase>("splash");
@@ -22,6 +35,14 @@ export default function DispatchPage() {
   const [newAddress, setNewAddress] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [addCallError, setAddCallError] = useState("");
+  const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewMarkerRef = useRef<mapboxgl.Marker | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -66,8 +87,85 @@ export default function DispatchPage() {
     refetchInterval: 3000,
   });
 
+  const fetchSuggestions = useCallback(async (query: string) => {
+    if (query.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    setSuggestionsLoading(true);
+    try {
+      const res = await fetch(`/api/geocode/autocomplete?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      setSuggestions(data.suggestions || []);
+      setShowSuggestions(true);
+      setHighlightedIndex(-1);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
+
+  const handleAddressInput = (value: string) => {
+    setNewAddress(value);
+    setSelectedAddress(null);
+    setAddCallError("");
+
+    if (previewMarkerRef.current) {
+      previewMarkerRef.current.remove();
+      previewMarkerRef.current = null;
+    }
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(value), 300);
+  };
+
+  const selectSuggestion = (suggestion: AddressSuggestion) => {
+    const [lng, lat] = suggestion.center;
+    setNewAddress(suggestion.place_name);
+    setSelectedAddress({
+      address: suggestion.place_name,
+      lat,
+      lng,
+      placeId: suggestion.place_id,
+    });
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setAddCallError("");
+
+    if (previewMarkerRef.current) {
+      previewMarkerRef.current.remove();
+    }
+    if (mapRef.current) {
+      const el = document.createElement("div");
+      el.style.cssText = "width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:24px solid hsl(50,100%,50%);filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));opacity:0.7;";
+      previewMarkerRef.current = new mapboxgl.Marker(el)
+        .setLngLat([lng, lat])
+        .addTo(mapRef.current);
+      mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 800 });
+    }
+  };
+
+  const handleAddressKeyDown = (e: React.KeyboardEvent) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === "Enter" && highlightedIndex >= 0) {
+      e.preventDefault();
+      selectSuggestion(suggestions[highlightedIndex]);
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  };
+
   const addCallMutation = useMutation({
-    mutationFn: async (data: { address: string; notes?: string }) => {
+    mutationFn: async (data: { address: string; notes?: string; lat: number; lng: number }) => {
       const res = await fetch("/api/calls/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -75,6 +173,8 @@ export default function DispatchPage() {
           dispatchCode: dispatchCode.trim(),
           address: data.address,
           notes: data.notes,
+          lat: data.lat,
+          lng: data.lng,
         }),
       });
       if (!res.ok) {
@@ -87,15 +187,15 @@ export default function DispatchPage() {
       setNewAddress("");
       setNewNotes("");
       setAddCallError("");
+      setSelectedAddress(null);
+      if (previewMarkerRef.current) {
+        previewMarkerRef.current.remove();
+        previewMarkerRef.current = null;
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/calls/list", dispatchCode] });
     },
     onError: (err: Error) => {
-      const msg = err.message || "";
-      setAddCallError(
-        msg.toLowerCase().includes("geocod")
-          ? "Could not find that address. Please try a more specific address."
-          : msg || "Failed to add call"
-      );
+      setAddCallError(err.message || "Failed to add call");
     },
   });
 
@@ -246,10 +346,16 @@ export default function DispatchPage() {
       setAddCallError("Address is required");
       return;
     }
+    if (!selectedAddress) {
+      setAddCallError("Please select an address from the suggestions list.");
+      return;
+    }
     setAddCallError("");
     addCallMutation.mutate({
-      address: newAddress.trim(),
+      address: selectedAddress.address,
       notes: newNotes.trim() || undefined,
+      lat: selectedAddress.lat,
+      lng: selectedAddress.lng,
     });
   };
 
@@ -429,14 +535,52 @@ export default function DispatchPage() {
           <div className="p-4">
             <h2 className="text-xl font-black mb-3" data-testid="text-add-call-heading">ADD CALL</h2>
             <label className="text-sm font-bold">Address</label>
-            <input
-              type="text"
-              value={newAddress}
-              onChange={(e) => setNewAddress(e.target.value)}
-              className="w-full border-2 border-current bg-transparent px-3 py-2 text-sm font-medium mb-3 outline-none"
-              placeholder="e.g. 123 Main St, New York"
-              data-testid="input-call-address"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={newAddress}
+                onChange={(e) => handleAddressInput(e.target.value)}
+                onKeyDown={handleAddressKeyDown}
+                onFocus={() => { if (suggestions.length > 0 && !selectedAddress) setShowSuggestions(true); }}
+                onBlur={() => { setTimeout(() => setShowSuggestions(false), 200); }}
+                className={`w-full border-2 border-current bg-transparent px-3 py-2 text-sm font-medium outline-none ${selectedAddress ? "bg-green-100/30" : ""}`}
+                placeholder="Start typing an address..."
+                data-testid="input-call-address"
+              />
+              {selectedAddress && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-green-700 text-xs font-bold">
+                  Selected
+                </span>
+              )}
+              {showSuggestions && (
+                <div
+                  ref={suggestionsRef}
+                  className="absolute left-0 right-0 top-full z-50 border-2 border-current border-t-0 max-h-48 overflow-y-auto"
+                  style={{ backgroundColor: "hsl(50, 100%, 85%)" }}
+                  data-testid="address-suggestions"
+                >
+                  {suggestionsLoading && (
+                    <div className="px-3 py-2 text-sm font-medium opacity-60">Searching...</div>
+                  )}
+                  {!suggestionsLoading && suggestions.length === 0 && newAddress.length >= 2 && (
+                    <div className="px-3 py-2 text-sm font-medium opacity-60">No results found</div>
+                  )}
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={s.place_id}
+                      onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s); }}
+                      className={`w-full text-left px-3 py-2 text-sm font-medium cursor-pointer transition-colors ${
+                        i === highlightedIndex ? "bg-black/10" : "hover:bg-black/5"
+                      }`}
+                      data-testid={`suggestion-${i}`}
+                    >
+                      {s.place_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="mb-3" />
             <label className="text-sm font-bold">Notes</label>
             <input
               type="text"

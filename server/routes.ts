@@ -16,6 +16,34 @@ export async function registerRoutes(
     res.json({ token: MAPBOX_TOKEN_PUBLIC });
   });
 
+  app.get("/api/geocode/autocomplete", async (req, res) => {
+    const q = (req.query.q as string || "").trim();
+    if (!q || q.length < 2) {
+      return res.json({ suggestions: [] });
+    }
+
+    const token = MAPBOX_TOKEN_PUBLIC;
+    if (!token) {
+      return res.status(500).json({ error: "Mapbox token not configured" });
+    }
+
+    try {
+      const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${token}&autocomplete=true&country=us&types=address,poi,place&limit=5`;
+      const geocodeRes = await fetch(url);
+      const data = await geocodeRes.json();
+
+      const suggestions = (data.features || []).map((f: any) => ({
+        place_name: f.place_name,
+        center: f.center,
+        place_id: f.id,
+      }));
+
+      res.json({ suggestions });
+    } catch {
+      res.status(500).json({ error: "Geocoding request failed" });
+    }
+  });
+
   app.post("/api/validate-dispatch-code", (req, res) => {
     const result = validateDispatchCodeSchema.safeParse(req.body);
     if (!result.success) {
@@ -82,27 +110,33 @@ export async function registerRoutes(
       return res.status(400).json({ error: "Invalid request" });
     }
 
-    const { dispatchCode, address, notes } = result.data;
+    const { dispatchCode, address, notes, lat: providedLat, lng: providedLng } = result.data;
 
     if (dispatchCode !== DISPATCH_GROUP_CODE) {
       return res.status(403).json({ error: "Invalid dispatch code" });
     }
 
     let lat: number, lng: number;
-    try {
-      const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN_SECRET || MAPBOX_TOKEN_PUBLIC}&limit=1`;
-      const geocodeRes = await fetch(geocodeUrl);
-      const geocodeData = await geocodeRes.json();
 
-      if (!geocodeData.features || geocodeData.features.length === 0) {
-        return res.status(400).json({ error: "Could not geocode address. Please try a more specific address." });
+    if (providedLat !== undefined && providedLng !== undefined) {
+      lat = providedLat;
+      lng = providedLng;
+    } else {
+      try {
+        const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN_PUBLIC}&limit=1`;
+        const geocodeRes = await fetch(geocodeUrl);
+        const geocodeData = await geocodeRes.json();
+
+        if (!geocodeData.features || geocodeData.features.length === 0) {
+          return res.status(400).json({ error: "Could not geocode address. Please try a more specific address." });
+        }
+
+        const [lngResult, latResult] = geocodeData.features[0].center;
+        lat = latResult;
+        lng = lngResult;
+      } catch {
+        return res.status(500).json({ error: "Geocoding failed" });
       }
-
-      const [lngResult, latResult] = geocodeData.features[0].center;
-      lat = latResult;
-      lng = lngResult;
-    } catch {
-      return res.status(500).json({ error: "Geocoding failed" });
     }
 
     const call = await storage.createCall({
