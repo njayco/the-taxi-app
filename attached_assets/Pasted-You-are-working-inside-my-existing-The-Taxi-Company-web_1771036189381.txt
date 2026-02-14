@@ -1,0 +1,81 @@
+You are working inside my existing “The Taxi Company” web app (dispatch dashboard with a Live Map). Right now, when I type an address in the “ADD CALL → Address” input, it often errors: “Could not find this address. Please try a more specific address.”
+
+GOAL
+Replace free-typed geocoding with an address autocomplete dropdown for UNITED STATES addresses, so dispatchers can select a valid address and the map updates correctly every time.
+
+REQUIREMENTS
+1) Address Autocomplete (US-only)
+- As the dispatcher types into the Address input, show a dropdown of suggested addresses (United States only).
+- Dispatcher clicks a suggestion to select it.
+- After selection, store:
+  - formatted_address (string)
+  - place_id (string)
+  - lat (number)
+  - lng (number)
+
+2) Map Update (Live Map)
+- When an address is selected:
+  - Place a marker/pin on the Live Map at (lat,lng)
+  - Center the map on that pin and optionally zoom to a sensible level (e.g. 15)
+- If the dispatcher changes the selection, update the pin.
+
+3) Form + Call Creation
+- “ADD CALL” should submit using the selected structured address + coordinates (not the raw typed text).
+- Prevent submit if no valid selection has been made (show “Please select an address from the list.”)
+
+4) Provider Choice
+Implement using ONE of these options (pick whichever is already closest to my current map stack):
+A) Google Maps Places Autocomplete (best UX)
+B) Mapbox Geocoding Autocomplete (good alternative)
+C) OpenStreetMap/Nominatim (no key, but less reliable and rate-limited)
+
+FIRST: Inspect the current codebase
+- Identify how the Live Map is rendered (Google Maps / Mapbox / Leaflet / other).
+- Identify how addresses are currently geocoded and where the error message is triggered.
+- Identify where calls are stored (state / database / API route).
+
+IMPLEMENTATION DETAILS (preferred approach)
+If map is Google Maps:
+- Load Google Maps JS API with Places library enabled.
+- Use AutocompleteService + PlacesService (or the Autocomplete widget) for suggestions.
+- Restrict to US addresses using componentRestrictions: { country: "us" }.
+- On selection, call placesService.getDetails({placeId, fields: ["formatted_address","geometry.location","place_id"]})
+- Convert geometry.location to lat/lng numbers and store in state.
+
+If map is Mapbox:
+- Use Mapbox Geocoding API with autocomplete=true and country=us and types=address
+- Fetch suggestions as user types with debounce (250–400ms) and render dropdown.
+- On click, store the chosen feature’s place_name and center coordinates.
+
+UI/UX
+- Dropdown should be directly under the Address input, with keyboard support:
+  - Arrow up/down to move
+  - Enter to select
+  - Esc to close
+- Add debounce so we don’t spam the API.
+- Show “Searching…” and “No results” states.
+- Keep it clean with the existing design system.
+
+SECURITY
+- Do NOT expose secret keys in client code.
+- If using Google/Mapbox, create a server API route:
+  - /api/places/autocomplete?q=
+  - /api/places/details?placeId=
+  (or /api/geocode?q=)
+- Store keys in environment variables (.env):
+  - GOOGLE_MAPS_API_KEY or MAPBOX_TOKEN
+- Add basic rate-limiting and input validation on API routes.
+
+DELIVERABLES
+1) A clear plan with the exact files to change/create.
+2) Implement autocomplete dropdown in the Address input.
+3) Implement map update (pin + center) on selection.
+4) Update form submission to require a valid selected address.
+5) Remove/replace the “Could not find this address…” flow so selection is always geocodable.
+
+ACCEPTANCE TESTS
+- Typing “1 Long Beach Road, Hempstead…” shows suggestions.
+- Selecting one suggestion fills the input with the formatted address.
+- The map centers and drops a pin on that address.
+- Submitting “Add Call” saves the call with lat/lng and formatted_address.
+- If I just type text and don’t select from the dropdown, submit is blocked with a helpful message.
