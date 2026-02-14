@@ -1,0 +1,131 @@
+Got it. What you’re seeing is almost always two different “sources of truth” for lastSeen + a stale snapshot in the Driver Details panel.
+	•	Drivers Live list is probably reading from a frequently-updated drivers array (polling every 1–3s).
+	•	Driver Details is probably holding onto a copied driver object from when you first clicked the driver (or it fetched /api/drivers/:id once), and then it’s not being refreshed, so its lastSeen gets older and eventually flips to OFFLINE.
+
+On top of that, there’s a second common bug: seconds vs milliseconds (or string parsing) when comparing Date.now() to lastSeen.
+
+Here’s how to fix it cleanly.
+
+⸻
+
+Fix the OFFLINE bug (the correct architecture)
+
+✅ Rule 1: Driver Details must “subscribe” to the same live driver object
+
+Don’t store the whole driver object in state like:
+
+setSelectedDriver(driver) // ❌ snapshot freezes
+
+Instead store only the selectedDriverId:
+
+setSelectedDriverId(driver.id) // ✅ stays live
+
+Then derive the selected driver from the live list:
+
+const selectedDriver = useMemo(
+  () => drivers.find(d => d.id === selectedDriverId) ?? null,
+  [drivers, selectedDriverId]
+);
+
+Now the Driver Details panel always renders the latest lastSeen.
+
+⸻
+
+Fix the OFFLINE calculation (seconds vs ms + clock drift)
+
+✅ Use one helper everywhere
+
+Pick ONE field type:
+	•	Best: store lastSeenAt as an ISO string or ms timestamp
+	•	Avoid storing “26s ago” strings in your data model (compute that in UI only)
+
+Helper:
+
+function computeDriverStatus(lastSeenAt: string | number | Date | null) {
+  if (!lastSeenAt) return { status: "OFFLINE", ageMs: Infinity };
+
+  const lastSeenMs =
+    typeof lastSeenAt === "number"
+      ? (lastSeenAt < 10_000_000_000 ? lastSeenAt * 1000 : lastSeenAt) // handles seconds vs ms
+      : new Date(lastSeenAt).getTime();
+
+  const nowMs = Date.now();
+  const ageMs = Math.max(0, nowMs - lastSeenMs);
+
+  // threshold: "online if seen in last 15s"
+  const ONLINE_THRESHOLD_MS = 15_000;
+
+  return { status: ageMs <= ONLINE_THRESHOLD_MS ? "ONLINE" : "OFFLINE", ageMs };
+}
+
+Use it in both Drivers Live list and Driver Details panel.
+If you currently use different thresholds (like 10s in one place and 30s in the other), you’ll see mismatches.
+
+⸻
+
+Fix UI “Last seen: Xs ago” not updating
+
+Even if lastSeenAt is correct, “Xs ago” will freeze unless something triggers re-render.
+
+✅ Add a simple “tick” re-render every second
+
+const [nowTick, setNowTick] = useState(0);
+
+useEffect(() => {
+  const t = setInterval(() => setNowTick(x => x + 1), 1000);
+  return () => clearInterval(t);
+}, []);
+
+Then use nowTick (only) to force the “time ago” label to update.
+
+⸻
+
+Quick debug checklist (5 minutes)
+	1.	In Drivers Live list and Driver Details panel, console log:
+
+console.log("LIVE", driver.id, driver.lastSeenAt);
+console.log("DETAIL", selectedDriver?.id, selectedDriver?.lastSeenAt);
+
+If they differ → you’re using a snapshot.
+	2.	Log computed ms:
+
+console.log("ageMs", computeDriverStatus(lastSeenAt).ageMs);
+
+If ageMs is huge or negative → ms/sec or timezone parsing issue.
+	3.	Verify backend writes lastSeenAt consistently:
+
+	•	Either always ms epoch
+	•	Or always ISO string
+
+⸻
+
+Copy/paste Replit prompt to fix it (targeted)
+
+We have a bug in the Taxi Dispatch app: Driver Details shows OFFLINE while Drivers Live shows last seen 1–2s ago. Driver Details is not updating in real time.
+
+Fix requirements:
+1) Make Driver Details use the same real-time driver data as the Drivers Live list.
+   - Store selectedDriverId only (string), NOT a snapshot of the driver object.
+   - Derive selectedDriver from the live drivers array using useMemo([drivers, selectedDriverId]).
+2) Unify status computation across the app:
+   - Create computeDriverStatus(lastSeenAt) helper that:
+     - Accepts ISO string, Date, ms timestamp, or seconds timestamp
+     - Normalizes to milliseconds
+     - Uses a single ONLINE threshold (15 seconds)
+   - Use it for BOTH Drivers Live list and Driver Details.
+3) Ensure “Last seen Xs ago” updates every second:
+   - Add a small setInterval tick state and compute the label from (Date.now() - lastSeenMs).
+4) Verify backend lastSeenAt format is consistent:
+   - If backend sends lastSeenAt in seconds, convert to ms in API response OR normalize on client.
+5) Add small debug logs temporarily to confirm Driver Details lastSeenAt matches Drivers Live.
+
+Deliverables:
+- Updated state handling in dashboard (selectedDriverId)
+- Shared computeDriverStatus helper
+- Updated Driver Details + Drivers Live to use same helper
+- “Last seen” label updates continuously without extra API calls
+
+
+⸻
+
+If you paste just the two React components (Drivers Live list + Driver Details panel) or tell me their filenames, I can point to the exact lines where the snapshot is happening and give you the exact patch.
