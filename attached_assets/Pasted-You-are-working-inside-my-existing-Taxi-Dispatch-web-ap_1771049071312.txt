@@ -1,0 +1,107 @@
+You are working inside my existing Taxi Dispatch web app (Next.js + TypeScript + Mapbox). 
+
+PROBLEM
+In “Driver Details” the driver flips to OFFLINE after ~15 seconds even though the “Drivers Live” list still shows “last seen 1s ago”. This means Driver Details is using a stale snapshot of the driver (or a separate lastSeen value) instead of the live in-memory driver feed.
+
+GOAL
+Make Driver Details always reflect the same real-time driver object used by Drivers Live (single source of truth), so lastSeen + ONLINE/OFFLINE stays accurate and never goes stale while the driver is actually live.
+
+REQUIREMENTS (Single Source of Truth)
+1) Do NOT store the full driver object in state when selecting a driver.
+   - Replace any code like: setSelectedDriver(driver)  (snapshot, becomes stale)
+   - With: setSelectedDriverId(driver.id)
+
+2) Derive the selected driver from the live in-memory drivers list:
+   - selectedDriver = drivers.find(d => d.id === selectedDriverId)
+   - Use useMemo so it recomputes whenever drivers updates.
+
+3) Unify the ONLINE/OFFLINE logic:
+   - Create a shared helper computeDriverStatus(lastSeenAt) used by BOTH:
+     a) Drivers Live list row
+     b) Driver Details panel
+   - Normalize lastSeenAt to milliseconds (handle seconds vs ms safely).
+   - Use ONE threshold everywhere: ONLINE if lastSeen is within 15 seconds.
+
+4) Make the “Last seen: Xs ago” label update continuously:
+   - Add a lightweight 1-second “tick” state in the dashboard or driver details component
+     so the time-ago label updates even if no API call occurs that exact second.
+
+5) Ensure the driver lastSeenAt is updated in-memory whenever driver pings GPS:
+   - Wherever you handle driver location updates (polling/websocket/heartbeat), update the SAME
+     drivers store object:
+       drivers[driverId].lastSeenAt = new Date().toISOString()
+   - Confirm you’re not writing lastSeenAt into a different object than the one used by Drivers Live.
+
+IMPLEMENTATION DETAILS (Client)
+A) State change:
+- Create:
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+- Remove:
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+
+B) Derived selection:
+- Add:
+  const selectedDriver = useMemo(
+    () => drivers.find(d => d.id === selectedDriverId) ?? null,
+    [drivers, selectedDriverId]
+  );
+
+C) Shared status helper:
+- Create file: /lib/driverStatus.ts
+
+export function normalizeToMs(lastSeenAt: string | number | Date | null): number {
+  if (!lastSeenAt) return 0;
+  if (typeof lastSeenAt === "number") {
+    // if seconds epoch, convert to ms
+    return lastSeenAt < 10_000_000_000 ? lastSeenAt * 1000 : lastSeenAt;
+  }
+  return new Date(lastSeenAt).getTime();
+}
+
+export function computeDriverStatus(lastSeenAt: string | number | Date | null, nowMs: number) {
+  const lastSeenMs = normalizeToMs(lastSeenAt);
+  const ageMs = Math.max(0, nowMs - lastSeenMs);
+  const ONLINE_THRESHOLD_MS = 15_000;
+  return {
+    ageMs,
+    status: lastSeenMs > 0 && ageMs <= ONLINE_THRESHOLD_MS ? "ONLINE" : "OFFLINE",
+  };
+}
+
+D) Tick for time-ago UI:
+- In the dashboard (or DriverDetails component), add:
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(x => x + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const nowMs = Date.now();
+
+- Use nowMs in computeDriverStatus() so re-renders update labels.
+
+E) Update Driver Details UI:
+- Use selectedDriver from useMemo, not stored snapshot.
+- Compute:
+  const { status, ageMs } = computeDriverStatus(selectedDriver?.lastSeenAt ?? null, nowMs);
+  const lastSeenLabel = selectedDriver?.lastSeenAt
+    ? `${Math.floor(ageMs / 1000)}s ago`
+    : "never";
+
+- Render Status pill based on status.
+
+F) Consistency:
+- Update Drivers Live list to use the SAME computeDriverStatus helper and same nowMs.
+
+SERVER / MEMORY NOTE
+If you maintain drivers in server memory (e.g., a Map in a Next.js route), ensure:
+- Every heartbeat/location update mutates that same Map entry’s lastSeenAt
+- The GET /api/drivers endpoint returns lastSeenAt for each driver from that Map
+- The client polls /api/drivers every 1–3 seconds and sets drivers state from that response
+
+DELIVERABLES
+- Refactor driver selection to store selectedDriverId only
+- Derive selectedDriver from live drivers state
+- Add /lib/driverStatus.ts helper and use it in both drivers list + driver details
+- Add 1-second tick to keep last-seen label fresh
+- Verify lastSeenAt is updated on every driver GPS ping in the single in-memory driver store
+- Add short comments explaining “snapshot vs live state” as the root cause
