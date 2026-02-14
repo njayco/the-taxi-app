@@ -13,10 +13,22 @@ A hybrid taxi dispatch web application built for **The Taxi Company** (A Denoko 
 ### Dispatch Mode
 - Secure login with passcode and dispatch group code
 - Live Mapbox map showing all active driver locations in real time
-- Create call pins with address autocomplete (US addresses, powered by Mapbox Geocoding API)
-- Manage calls with status tracking: NEW, ASSIGNED, DONE
+- Create call pins with customer name, phone number, and address
+- Address autocomplete powered by Mapbox Geocoding API (US addresses)
+- "Picked Up" button to mark calls as completed
+- Green map markers for completed calls, yellow for active
+- Stats header showing active and completed call counts
+- Active calls sorted first, completed calls at the bottom
+- Call details panel with full customer info and status management
 - View driver list with last-seen timestamps
 - Auto-refreshing dashboard (3-second polling)
+
+### Call Workflow
+1. Dispatcher enters customer name, phone number, and address
+2. Address autocomplete suggests matching US addresses
+3. Selecting an address previews a pin on the map
+4. "Drop Pin" creates the call and adds it to the live map
+5. "Picked Up" marks the call as completed (pin turns green)
 
 ## Tech Stack
 
@@ -34,6 +46,20 @@ A hybrid taxi dispatch web application built for **The Taxi Company** (A Denoko 
 | `DISPATCH_PASSCODE` | Admin passcode for dispatch login |
 | `DISPATCH_GROUP_CODE` | Shared dispatch group code (e.g., `NYAC-TAXI-01`) |
 | `SESSION_SECRET` | Session secret for Express |
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/validate-dispatch-code` | Validates dispatch code for drivers |
+| `POST` | `/api/dispatch/login` | Dispatch login with passcode + dispatch code |
+| `POST` | `/api/driver/update-location` | Driver GPS update (every 5s) |
+| `GET` | `/api/driver/list` | List drivers by dispatch code |
+| `POST` | `/api/calls/create` | Create call with customer name, phone, and address |
+| `GET` | `/api/calls/list` | List calls by dispatch code |
+| `PATCH` | `/api/calls/update-status` | Update call status (NEW / ASSIGNED / DONE) |
+| `GET` | `/api/mapbox-token` | Get Mapbox public token for frontend |
+| `GET` | `/api/geocode/autocomplete` | Address autocomplete (US-only, Mapbox Geocoding API) |
 
 ## Getting Started
 
@@ -53,7 +79,7 @@ A hybrid taxi dispatch web application built for **The Taxi Company** (A Denoko 
 
 1. **Drivers** open the app on their phone, enter their name and the dispatch group code, then tap "Start Sharing" to begin broadcasting their GPS location.
 
-2. **Dispatchers** log in with the admin passcode and dispatch code. They see all active drivers on a live map and can create call pins by typing an address (with autocomplete suggestions). Calls can be tracked through their lifecycle: NEW, ASSIGNED, and DONE.
+2. **Dispatchers** log in with the admin passcode and dispatch code. They see all active drivers on a live map and can create calls by entering the customer's name, phone number, and address (with autocomplete). Each call appears as a yellow pin on the map. When a customer is picked up, the dispatcher taps "Picked Up" and the pin turns green.
 
 ## Design
 
