@@ -9,10 +9,11 @@ export async function registerRoutes(
 ): Promise<Server> {
   const DISPATCH_GROUP_CODE = process.env.DISPATCH_GROUP_CODE || "NYAC-TAXI-01";
   const DISPATCH_PASSCODE = process.env.DISPATCH_PASSCODE || "admin";
-  const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN || "";
+  const MAPBOX_TOKEN_PUBLIC = process.env.MAPBOX_TOKEN_PUBLIC || "";
+  const MAPBOX_TOKEN_SECRET = process.env.MAPBOX_TOKEN_SECRET || "";
 
   app.get("/api/mapbox-token", (_req, res) => {
-    res.json({ token: MAPBOX_TOKEN });
+    res.json({ token: MAPBOX_TOKEN_PUBLIC });
   });
 
   app.post("/api/validate-dispatch-code", (req, res) => {
@@ -89,7 +90,7 @@ export async function registerRoutes(
 
     let lat: number, lng: number;
     try {
-      const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN}&limit=1`;
+      const geocodeUrl = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${MAPBOX_TOKEN_SECRET || MAPBOX_TOKEN_PUBLIC}&limit=1`;
       const geocodeRes = await fetch(geocodeUrl);
       const geocodeData = await geocodeRes.json();
 

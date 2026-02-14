@@ -20,7 +20,8 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 - `client/src/components/SplashScreen.tsx` - Loading splash screen
 
 ## Environment Variables (Secrets)
-- `MAPBOX_TOKEN` - Mapbox API token for maps and geocoding
+- `MAPBOX_TOKEN_PUBLIC` - Mapbox public access token (pk.*) for frontend map display
+- `MAPBOX_TOKEN_SECRET` - Mapbox secret access token (sk.*) for server-side geocoding
 - `DISPATCH_PASSCODE` - Admin passcode for dispatch login
 - `DISPATCH_GROUP_CODE` - Shared dispatch code (e.g., NYAC-TAXI-01)
 
