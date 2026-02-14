@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -76,6 +76,24 @@ function parseFareInput(value: string): number | null {
   return Math.round(num * 100);
 }
 
+const ONLINE_THRESHOLD_MS = 15_000;
+
+function computeDriverStatus(lastSeen: string | number | Date | null): { isOnline: boolean; ageMs: number } {
+  if (!lastSeen) return { isOnline: false, ageMs: Infinity };
+  const lastSeenMs = typeof lastSeen === "number"
+    ? (lastSeen < 10_000_000_000 ? lastSeen * 1000 : lastSeen)
+    : new Date(lastSeen).getTime();
+  const ageMs = Math.max(0, Date.now() - lastSeenMs);
+  return { isOnline: ageMs <= ONLINE_THRESHOLD_MS, ageMs };
+}
+
+function formatTimeSince(ageMs: number): string {
+  const secs = Math.floor(ageMs / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  return `${Math.floor(secs / 3600)}h ago`;
+}
+
 function getFiltersFromUrl(): { status: StatusFilter; range: DateRange; startDate: string; endDate: string } {
   const params = new URLSearchParams(window.location.search);
   return {
@@ -113,7 +131,8 @@ export default function DispatchPage() {
   const [authed, setAuthed] = useState(false);
 
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
-  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
+  const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(0);
 
   const urlFilters = getFiltersFromUrl();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(urlFilters.status);
@@ -142,6 +161,11 @@ export default function DispatchPage() {
   const driverMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const [mapToken, setMapToken] = useState("");
   const [mapError, setMapError] = useState("");
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     updateUrlFilters({ status: statusFilter, range: dateRange, startDate: customStartDate, endDate: customEndDate });
@@ -184,6 +208,11 @@ export default function DispatchPage() {
     enabled: authed && !!dispatchCode,
     refetchInterval: 3000,
   });
+
+  const selectedDriver = useMemo(
+    () => (selectedDriverId ? drivers.find((d) => d.id === selectedDriverId) ?? null : null),
+    [drivers, selectedDriverId]
+  );
 
   const callsQueryKey = ["/api/calls/list", dispatchCode, statusFilter, dateRange, customStartDate, customEndDate];
 
@@ -424,8 +453,8 @@ export default function DispatchPage() {
       const markerId = driver.id;
       existingDriverIds.add(markerId);
 
-      const lastSeenMs = Date.now() - new Date(driver.lastSeen).getTime();
-      const isStale = lastSeenMs > 12000;
+      const { isOnline: driverOnline } = computeDriverStatus(driver.lastSeen);
+      const isStale = !driverOnline;
 
       if (driverMarkersRef.current.has(markerId)) {
         const marker = driverMarkersRef.current.get(markerId)!;
@@ -446,7 +475,7 @@ export default function DispatchPage() {
           .addTo(map);
 
         el.addEventListener("click", () => {
-          setSelectedDriver(driver);
+          setSelectedDriverId(driver.id);
           setSelectedCall(null);
         });
 
@@ -504,7 +533,7 @@ export default function DispatchPage() {
 
         el.addEventListener("click", () => {
           setSelectedCall(call);
-          setSelectedDriver(null);
+          setSelectedDriverId(null);
         });
         callMarkersRef.current.set(markerId, marker);
       }
@@ -632,12 +661,7 @@ export default function DispatchPage() {
     mapRef.current?.flyTo({ center: [lng, lat], zoom: 15, duration: 800 });
   };
 
-  const getTimeSince = (dateStr: string) => {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
-  };
+  void nowTick;
 
   if (phase === "splash") {
     return <SplashScreen message="Loading dispatch dashboard..." onComplete={() => setPhase("login")} />;
@@ -703,8 +727,7 @@ export default function DispatchPage() {
 
   const rightPanelContent = () => {
     if (selectedDriver) {
-      const lastSeenMs = Date.now() - new Date(selectedDriver.lastSeen).getTime();
-      const isOnline = lastSeenMs <= 12000;
+      const { isOnline, ageMs: driverAgeMs } = computeDriverStatus(selectedDriver.lastSeen);
       const assignedCallsCount = calls.filter((c) => c.assignedDriverId === selectedDriver.id).length;
 
       return (
@@ -735,7 +758,7 @@ export default function DispatchPage() {
 
           <p className="font-bold text-sm mb-1">Last Seen:</p>
           <p className="text-sm font-medium mb-3" data-testid="text-driver-detail-lastseen">
-            {getTimeSince(selectedDriver.lastSeen)}
+            {formatTimeSince(driverAgeMs)}
           </p>
 
           <div className="border-t-2 border-current pt-3 mt-2 space-y-3">
@@ -757,7 +780,7 @@ export default function DispatchPage() {
           </div>
 
           <button
-            onClick={() => setSelectedDriver(null)}
+            onClick={() => setSelectedDriverId(null)}
             className="w-full mt-4 py-2 text-sm font-bold underline opacity-60"
             data-testid="button-close-driver-details"
           >
@@ -1022,7 +1045,7 @@ export default function DispatchPage() {
                     <button
                       onClick={() => {
                         setSelectedCall(call);
-                        setSelectedDriver(null);
+                        setSelectedDriverId(null);
                         focusOnMap(call.lat, call.lng);
                       }}
                       className="w-full text-left"
@@ -1108,20 +1131,19 @@ export default function DispatchPage() {
                 <p className="text-sm opacity-60 font-medium">No drivers online</p>
               )}
               {drivers.map((driver) => {
-                const lastSeenMs = Date.now() - new Date(driver.lastSeen).getTime();
-                const isStale = lastSeenMs > 12000;
+                const { isOnline: driverIsOnline, ageMs: driverAge } = computeDriverStatus(driver.lastSeen);
                 const driverAssignedCount = calls.filter((c) => c.assignedDriverId === driver.id && c.status !== "DONE").length;
                 return (
                   <button
                     key={driver.id}
                     onClick={() => {
-                      setSelectedDriver(driver);
+                      setSelectedDriverId(driver.id);
                       setSelectedCall(null);
                       focusOnMap(driver.lat, driver.lng);
                     }}
                     className={`w-full text-left py-1.5 px-2 transition-colors flex items-center gap-2 ${
-                      isStale ? "opacity-40" : ""
-                    } ${selectedDriver?.id === driver.id ? "bg-black/10" : ""}`}
+                      !driverIsOnline ? "opacity-40" : ""
+                    } ${selectedDriverId === driver.id ? "bg-black/10" : ""}`}
                     data-testid={`button-driver-${driver.id}`}
                   >
                     <span className="w-3 h-3 rounded-full bg-current shrink-0" />
@@ -1132,7 +1154,7 @@ export default function DispatchPage() {
                       </span>
                     )}
                     <span className="text-xs opacity-60 ml-auto">
-                      {isStale ? "(stale) " : ""}last seen {getTimeSince(driver.lastSeen)}
+                      {!driverIsOnline ? "(stale) " : ""}last seen {formatTimeSince(driverAge)}
                     </span>
                   </button>
                 );
