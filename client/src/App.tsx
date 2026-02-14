@@ -7,6 +7,8 @@ import HomePage from "@/pages/HomePage";
 import Landing from "@/pages/Landing";
 import DriverPage from "@/pages/DriverPage";
 import DispatchPage from "@/pages/DispatchPage";
+import AboutUsPage from "@/pages/AboutUsPage";
+import RedirectPage from "@/pages/RedirectPage";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +18,10 @@ function Router() {
       <Route path="/select" component={Landing} />
       <Route path="/driver" component={DriverPage} />
       <Route path="/dispatch" component={DispatchPage} />
+      <Route path="/about-us" component={AboutUsPage} />
+      <Route path="/features">{() => <RedirectPage to="/about-us" hash="features" />}</Route>
+      <Route path="/pricing">{() => <RedirectPage to="/about-us" hash="pricing" />}</Route>
+      <Route path="/contact">{() => <RedirectPage to="/about-us" hash="contact" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

@@ -14,12 +14,23 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 - `server/db.ts` - PostgreSQL connection via pg + Drizzle ORM
 - `server/storage.ts` - DatabaseStorage class for calls (DB) + DriverMemStore for drivers (in-memory)
 - `server/routes.ts` - API routes for driver location, calls CRUD with server-side filtering, dispatch code validation, geocoding, call assignment, driver stats
-- `client/src/pages/HomePage.tsx` - Entry splash page with loading bar and Enter button
+- `client/src/pages/HomePage.tsx` - Entry splash page with loading bar, "Enter App" and "Company Site" buttons
 - `client/src/pages/Landing.tsx` - Role selection page (Driver vs Dispatch) at /select
 - `client/src/pages/DriverPage.tsx` - Driver setup, GPS sharing (splash -> setup -> active)
 - `client/src/pages/DispatchPage.tsx` - Dispatch login, dashboard with map, calls, drivers, unified filters, call assignment, driver details panel (splash -> login -> dashboard)
+- `client/src/pages/AboutUsPage.tsx` - Company site About Us page with Metro/Zune-inspired design (hero, who we are, two modes, how it works, features, call workflow, map & filtering, tech stack, cooperative manifesto, testimonials, pricing, CTA)
+- `client/src/pages/RedirectPage.tsx` - Utility redirect component for /features, /pricing, /contact routes
 - `client/src/components/TaxiLogo.tsx` - Branded taxi logo component
 - `client/src/components/SplashScreen.tsx` - Loading splash screen
+- `client/src/components/CompanyNav.tsx` - Company site navigation bar with smooth-scroll anchor links
+- `client/src/components/CompanyFooter.tsx` - Company site footer with CTA and contact info
+
+## Company Site Routes
+- `/about-us` - Full About Us page with all sections (hero, features, pricing, etc.)
+- `/features` - Redirects to /about-us (features section anchor)
+- `/pricing` - Redirects to /about-us (pricing section anchor)
+- `/contact` - Redirects to /about-us (contact/footer section anchor)
+- Section anchors on about-us: #hero, #who-we-are, #platform, #driver-mode, #dispatch-mode, #features, #workflow, #map-filtering, #tech-stack, #cooperative, #cooperative-mission, #testimonials, #pricing, #contact
 
 ## Database Schema
 - `calls` table: id (serial PK), dispatch_code, customer_name, customer_phone, address, notes, lat, lng, status (NEW/ASSIGNED/DONE), fare_price_cents (int, nullable), assigned_driver_id (text, nullable), assigned_driver_name (text, nullable), assigned_at (timestamp, nullable), created_at, updated_at, completed_at

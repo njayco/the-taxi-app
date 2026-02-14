@@ -52,20 +52,37 @@ export default function HomePage() {
         </p>
       </div>
 
-      <button
-        onClick={() => navigate("/select")}
-        disabled={!loaded}
-        className="mt-8 w-full max-w-xs py-4 text-2xl font-black tracking-widest border-[4px] border-current transition-all duration-300"
-        style={{
-          opacity: loaded ? 1 : 0.3,
-          cursor: loaded ? "pointer" : "not-allowed",
-          backgroundColor: loaded ? "hsl(0, 0%, 7%)" : "transparent",
-          color: loaded ? "hsl(50, 100%, 50%)" : "hsl(0, 0%, 7%)",
-        }}
-        data-testid="button-enter"
-      >
-        ENTER
-      </button>
+      <div className="mt-8 w-full max-w-xs flex flex-col gap-3">
+        <button
+          onClick={() => navigate("/select")}
+          disabled={!loaded}
+          className="w-full py-4 text-xl font-black tracking-widest border-[4px] border-current transition-all duration-300"
+          style={{
+            opacity: loaded ? 1 : 0.3,
+            cursor: loaded ? "pointer" : "not-allowed",
+            backgroundColor: loaded ? "hsl(0, 0%, 7%)" : "transparent",
+            color: loaded ? "hsl(50, 100%, 50%)" : "hsl(0, 0%, 7%)",
+          }}
+          data-testid="button-enter-app"
+        >
+          ENTER APP
+        </button>
+
+        <button
+          onClick={() => navigate("/about-us")}
+          disabled={!loaded}
+          className="w-full py-4 text-xl font-black tracking-widest border-[4px] border-current transition-all duration-300"
+          style={{
+            opacity: loaded ? 1 : 0.3,
+            cursor: loaded ? "pointer" : "not-allowed",
+            backgroundColor: "transparent",
+            color: "hsl(0, 0%, 7%)",
+          }}
+          data-testid="button-enter-site"
+        >
+          COMPANY SITE
+        </button>
+      </div>
 
       <p className="text-xs font-semibold tracking-[0.2em] uppercase mt-10">
         A Denoko Cooperative
