@@ -163,8 +163,8 @@ export default function DispatchPage() {
     }
     if (mapRef.current) {
       const el = document.createElement("div");
-      el.style.cssText = "width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:24px solid hsl(50,100%,50%);filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));opacity:0.7;";
-      previewMarkerRef.current = new mapboxgl.Marker(el)
+      el.style.cssText = "width:24px;height:24px;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:24px solid hsl(50,100%,50%);filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));opacity:0.7;box-sizing:border-box;";
+      previewMarkerRef.current = new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([lng, lat])
         .addTo(mapRef.current);
       mapRef.current.flyTo({ center: [lng, lat], zoom: 15, duration: 800 });
@@ -311,16 +311,16 @@ export default function DispatchPage() {
         const marker = markersRef.current.get(markerId)!;
         const el = marker.getElement();
         const pinColor = isCompleted ? "hsl(140,70%,40%)" : "hsl(50,100%,50%)";
-        el.style.cssText = `width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;`;
+        el.style.cssText = `width:20px;height:20px;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;box-sizing:border-box;`;
       } else {
         const pinColor = isCompleted ? "hsl(140,70%,40%)" : "hsl(50,100%,50%)";
         const el = document.createElement("div");
-        el.style.cssText = `width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;`;
+        el.style.cssText = `width:20px;height:20px;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;box-sizing:border-box;`;
 
         const popupContent = `<div style="font-weight:700;font-size:13px;color:#111;">${call.customerName}</div><div style="font-size:12px;color:#333;">${call.address}</div>`;
         const popup = new mapboxgl.Popup({ offset: 15, closeButton: false }).setHTML(popupContent);
 
-        const marker = new mapboxgl.Marker(el)
+        const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
           .setLngLat([call.lng, call.lat])
           .setPopup(popup)
           .addTo(map);
