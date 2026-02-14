@@ -1,0 +1,95 @@
+You are working inside my existing Taxi Dispatch web app repo (full-stack). 
+Fix persistence and implement robust call filtering + fare price.
+
+PRIMARY BUG TO FIX
+1) Taxi calls are NOT being saved in the database per session. Calls disappear on refresh/redeploy.
+   - Replace any in-memory storage (arrays/maps) with real DB persistence.
+   - Ensure calls persist across server restarts and user sessions.
+
+TECH / DATA REQUIREMENTS
+- Use a real database (prefer Postgres with Prisma ORM; if repo already uses something else, keep it and make it persistent).
+- Add a Calls table/model with these fields (minimum):
+  - id (uuid or autoincrement)
+  - createdAt (datetime, default now)
+  - updatedAt (datetime, auto update)
+  - pickupAddress (string)
+  - pickupLat (float)
+  - pickupLng (float)
+  - callerName (string, optional but keep if already exists)
+  - callerPhone (string, optional but keep if already exists)
+  - status (enum: "NEW" | "COMPLETED")
+  - completedAt (datetime, nullable)
+  - farePriceCents (int, nullable) OR farePrice (decimal) — but store safely, avoid floats for currency
+  - notes (string, nullable) (optional)
+- Add DB migration(s) and update seed/dev logic accordingly.
+
+API REQUIREMENTS
+- Ensure there are server endpoints for:
+  - POST /api/calls -> create a call (validates input, writes to DB)
+  - PATCH /api/calls/:id -> update status to COMPLETED (sets completedAt) and update fare price if needed
+  - GET /api/calls -> list calls with filters:
+      Query params:
+        - status=NEW|COMPLETED|ALL
+        - range=TODAY|LAST_7_DAYS|LAST_30_DAYS|LAST_6_MONTHS|LAST_12_MONTHS|ALL_TIME|CUSTOM
+        - startDate=YYYY-MM-DD (when range=CUSTOM)
+        - endDate=YYYY-MM-DD   (when range=CUSTOM)
+      Return calls sorted by createdAt DESC by default.
+- All filtering should be done server-side (DB query) for performance, but allow client-side refinement if already built.
+
+UI / UX REQUIREMENTS (DISPATCH DASHBOARD)
+2) IMPORTANT: I do NOT want the dispatcher to “filter on the map with completed calls and new calls” in the old confusing way.
+   - Replace the existing map filter UX (if it’s a toggle that hides things without affecting list, or vice versa).
+   - Implement ONE unified filtering UI that controls BOTH:
+     (a) the Calls list
+     (b) the Map pins
+   - The map and call list must always show the same filtered set.
+
+3) Add date range filters:
+   - A “Date Range” control with presets:
+     - Today
+     - Last 7 days
+     - Last 30 days
+     - Last 6 months
+     - Last 12 months
+     - All time
+     - Custom (shows Start Date + End Date pickers)
+   - When the user changes the date range, refetch calls with the chosen range.
+   - Persist the selected filters in the URL query string (so refresh keeps the same view).
+
+4) Add status filters:
+   - A “Status” control:
+     - New
+     - Completed
+     - All
+   - This filter must apply to BOTH the map and the calls list.
+
+CALL CREATION FORM CHANGES
+5) Add Fare Price input to the “Add Call” form:
+   - Label: “Fare Price”
+   - This is manually entered by dispatcher.
+   - Accept dollars and cents (e.g., 12.50). Validate.
+   - Store as cents in DB (farePriceCents).
+   - Show the fare in the calls list (and in call details panel if you have one).
+   - Allow editing fare price when marking completed (optional but preferred).
+
+CALL COMPLETION UI
+6) When a call is marked “Picked Up” / “Completed”:
+   - Set status=COMPLETED
+   - Set completedAt timestamp
+   - Optionally turn the call icon green to indicate completed (keep this behavior if already added earlier)
+   - Immediately update UI (optimistic update ok) and persist to DB.
+
+QUALITY / SAFETY
+- Add server-side validation (zod or equivalent).
+- Add error states + toasts for failed saves.
+- Add loading states for filter changes.
+- Add tests if the repo already has test setup; otherwise at least do basic API smoke checks.
+- Keep styling consistent with the current yellow/black taxi theme and current UI components.
+
+DELIVERABLES
+- Working DB persistence (calls survive refresh/restart).
+- Unified filters that control both map + list.
+- Date-range presets + custom range.
+- Status filter (New/Completed/All).
+- Fare Price field saved + displayed.
+- Clean, commented code and updated README with environment variables and migration steps.
