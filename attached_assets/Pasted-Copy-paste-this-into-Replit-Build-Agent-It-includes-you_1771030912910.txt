@@ -1,0 +1,224 @@
+Copy/paste this into Replit (Build/Agent). It includes your **role-select landing page**, **dispatch-code grouping**, and keeps the UI matching the **yellow/black mockups**.
+
+```text
+You are working inside a NEW full-stack web app repo called “Denoko Taxi Dispatch MVP” for thetaxi.company.
+
+GOAL (Lean MVP / Hybrid Dispatch)
+Build a responsive web app (mobile + desktop) that shows:
+1) Live map of DRIVER locations (drivers share their GPS from their phone)
+2) Dispatcher-created CALL pins (dispatcher types an address, it drops a pin)
+3) Dispatcher can still use walkie-talkie/phone to assign rides (no automated assignment yet)
+
+IMPORTANT: The app must LOOK and FEEL like the provided mockup screenshots:
+- High-contrast taxi theme: bold black borders, yellow background accents, big blocky headings
+- Desktop: left column lists + main map panel
+- Mobile: big headings, large buttons, stacked cards, strong borders
+
+TECH STACK (use these defaults)
+- Next.js (App Router) + TypeScript
+- Tailwind CSS for styling
+- Map: Mapbox GL JS with MAPBOX_TOKEN env var
+- Backend: Next.js Route Handlers (app/api/*) + realtime via Socket.IO (preferred). If realtime is hard, do polling every 3 seconds as fallback.
+- Storage: Start with in-memory store (server singleton) for MVP. Add clear TODO to upgrade to Prisma+SQLite later.
+
+NEW ENTRY FLOW (Role Select + Dispatch Code)
+When a user visits root (/), show a clean landing screen:
+- Logo at top
+- Title: “Denoko Taxi Dispatch”
+- Subtitle: “Hybrid dispatch. Live driver map + call pins.”
+- Two big buttons/cards:
+  1) “I’M A DRIVER” -> routes to /driver
+  2) “I’M DISPATCH” -> routes to /dispatch
+This must be mobile-first but also look great on desktop.
+
+DISPATCH CODE SYSTEM (critical)
+- Each taxi office uses a “Dispatch Code” so drivers are grouped under the correct dispatch dashboard.
+- Drivers MUST enter a Dispatch Code before they can start sharing location.
+- Dispatchers MUST enter the same Dispatch Code (and admin passcode) to view that dashboard.
+- For MVP we support ONE shared dispatch code value stored in env var DISPATCH_GROUP_CODE.
+  Example: DISPATCH_GROUP_CODE=NYAC-TAXI-01
+
+ENV VARS
+- MAPBOX_TOKEN=...
+- DISPATCH_PASSCODE=...
+- DISPATCH_GROUP_CODE=...
+
+PAGES / ROUTES
+
+1) / (Landing)
+- Uses the logo and two big role buttons
+- Keep the same taxi-yellow/black style as mockups
+- No auth here
+
+2) /driver (Driver tools)
+- Show splash screen with logo for ~1.5 seconds (fade in/out), then Driver Setup panel:
+  - Big header: “DRIVER SETUP”
+  - Input: Driver Name (required)
+  - Input: Dispatch Code (required)
+  - Button: “CONTINUE”
+- Validate dispatch code:
+  - Must match process.env.DISPATCH_GROUP_CODE
+  - If wrong: show inline error banner “Invalid dispatch code” (like the mockups)
+- On success:
+  - Save to localStorage:
+    - driverId (UUID)
+    - driverName
+    - dispatchCode
+  - Show Driver Status screen:
+    - Big card showing:
+      - “Dispatch Code: <code>”
+      - “Status: SHARING ✅” (when active)
+      - “Last Update: <time>”
+    - Big button: “START SHARING” (when not active), then “STOP SHARING” (when active)
+  - Location behavior:
+    - Use browser geolocation (high accuracy)
+    - Send updates every 5 seconds while sharing
+    - Each update includes { driverId, name, dispatchCode, lat, lng, timestamp }
+    - If user denies location permission, show a clear error and instructions
+- The /driver page should not require any login beyond dispatch code validation.
+
+3) /dispatch (Dispatcher tools)
+- Show splash screen with logo for ~1.5 seconds, then “DISPATCH LOGIN” screen:
+  - Input: Admin Passcode (required) -> compare to DISPATCH_PASSCODE
+  - Input: Dispatch Code (required) -> compare to DISPATCH_GROUP_CODE
+  - Button: “ENTER DASHBOARD”
+  - If passcode wrong: show “Wrong admin passcode”
+  - If dispatch code wrong: show “Invalid dispatch code”
+- After authenticated:
+  - Show DISPATCH DASHBOARD with header:
+    - Left: logo
+    - Center: “DISPATCH DASHBOARD”
+    - Right: “Dispatch Code: <code>”
+  - Desktop layout (match mockup):
+    - Left column:
+      - CALLS list panel
+      - (Optional) DRIVERS LIVE panel beneath it (nice-to-have, match one mockup)
+      - ADD CALL form panel with Address + Notes + big “DROP PIN” button
+    - Main area:
+      - LIVE MAP panel with strong border
+  - Mobile layout:
+    - Map full screen
+    - Bottom sheet / drawer that contains Calls list and Add Call button (or stacked panels)
+  - Calls list:
+    - Each call shows: address, created time, notes (if present), status pill (NEW / ASSIGNED / DONE)
+    - Click a call focuses the map to the call pin
+    - Allow updating status to DONE (button like “MARK AS DONE” on a call details panel)
+  - Drivers live:
+    - List drivers with “last seen Xs”
+    - If last seen > 12s, show as “fading / stale”
+  - Geocoding for Add Call:
+    - Use Mapbox Geocoding API with MAPBOX_TOKEN
+    - If geocode fails, show a clear error message and do not create call
+  - Dispatcher sees ONLY drivers and calls for the matching dispatchCode.
+
+DATA MODEL (MVP) — add dispatchCode to both
+
+Driver:
+- id (string)
+- name (string)
+- dispatchCode (string)
+- lat (number)
+- lng (number)
+- lastSeen (datetime)
+
+Call:
+- id (string)
+- dispatchCode (string)
+- address (string)
+- notes (string)
+- lat (number)
+- lng (number)
+- status (“NEW” | “ASSIGNED” | “DONE”)
+- createdAt (datetime)
+
+API / ENDPOINTS (Route Handlers)
+- POST  /api/driver/update-location
+    body: { driverId, name, dispatchCode, lat, lng, timestamp }
+    action: upsert driver in store + broadcast to dispatch clients (by dispatchCode)
+- GET   /api/driver/list?dispatchCode=...
+    action: return drivers for that dispatchCode
+
+- POST  /api/calls/create
+    body: { dispatchCode, address, notes }
+    action: geocode address -> save call -> broadcast new call to dispatch clients
+- GET   /api/calls/list?dispatchCode=...
+    action: return calls for that dispatchCode
+- PATCH /api/calls/update-status
+    body: { callId, dispatchCode, status }
+    action: update call status + broadcast updated call to dispatch clients
+
+REALTIME BEHAVIOR
+- Preferred: Socket.IO
+  - Namespace or rooms keyed by dispatchCode
+  - Dispatch clients join room after successful login
+  - Driver updates broadcast into that room
+  - Call create/update broadcasts into that room
+- Fallback: polling every 3 seconds on /dispatch for drivers + calls
+
+MAP UI REQUIREMENTS
+- Use Mapbox map
+- Driver markers: distinct icon (e.g., circle marker) and label with driver name
+- Call pins: distinct icon (e.g., pin marker) and label with address short text
+- Legend in map corner: “Drivers” and “Calls” (like mockup)
+- Clicking list item centers map to marker
+
+BRANDING / LOGO REQUIREMENTS
+- Create /public/brand/denoko-taxi-logo.png
+  - If a logo file already exists in the workspace, move/copy it there.
+- Use this logo as:
+  1) Splash screen on /driver and /dispatch (brief fade-in)
+  2) Top-left navbar logo on all pages
+  3) Favicon if possible
+- Use Next/Image and keep the background clean.
+
+DESIGN THEME (match mockups)
+- Taxi yellow background accents + black text/borders
+- Big, bold headings (DISPATCH DASHBOARD, DISPATCH LOGIN, DRIVER SETUP)
+- Thick borders, boxed panels, high readability
+- Buttons: large, uppercase, black border, yellow fill
+
+SECURITY (MVP SIMPLE)
+- Dispatch dashboard requires BOTH:
+  1) Admin Passcode (DISPATCH_PASSCODE)
+  2) Valid Dispatch Code (must match DISPATCH_GROUP_CODE for MVP)
+- Driver requires valid Dispatch Code before location sharing is enabled.
+- No user accounts yet.
+
+README (must include)
+- Env var setup:
+  - MAPBOX_TOKEN
+  - DISPATCH_PASSCODE
+  - DISPATCH_GROUP_CODE (example NYAC-TAXI-01)
+- How to run dev server
+- Notes about mobile geolocation permissions
+- Explain grouping: drivers + calls are filtered by dispatchCode
+
+DELIVERABLES
+- Working app with / (landing) + /driver + /dispatch
+- Responsive layout matching screenshots
+- Live map with driver markers and call pins
+- Dispatch code grouping stable and enforced
+- Logo integrated as splash + navbar + favicon
+- Clear README
+
+DO NOT BUILD PHASE 2 YET (just leave TODOs)
+- Driver Available/Busy toggle
+- In-app assignment + driver accept/decline
+- Ride history + analytics
+- Multi-code dispatch codes per company (beyond single env var)
+
+IMPLEMENTATION ORDER
+1) Scaffold Next.js App Router + Tailwind
+2) Landing page (/)
+3) Shared layout + logo + splash component
+4) Driver flow with dispatch code validation + geolocation updates
+5) Dispatch login flow + dispatch dashboard UI
+6) API routes + in-memory store + Mapbox geocoding
+7) Realtime (Socket.IO) + fallback polling
+8) UI polish to match mockups
+9) README
+
+Start now and build the complete MVP.
+```
+
+If you want, I can also give you a **tiny “UI style spec”** (exact Tailwind classes for borders/panels/buttons) so the agent nails the mockup look on the first pass.
