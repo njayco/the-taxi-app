@@ -55,7 +55,7 @@ export function CompanyFooter() {
               VIEW LIVE DEMO
             </button>
             <a
-              href="mailto:info@denoko.com"
+              href="mailto:najeejere@gmail.com"
               className="px-8 md:px-10 py-3 md:py-4 font-black text-sm md:text-base tracking-tight border-2 border-black whitespace-nowrap text-center"
               style={{ backgroundColor: "hsl(50, 100%, 50%)", color: "hsl(0, 0%, 7%)" }}
               data-testid="link-contact-us"
@@ -67,11 +67,11 @@ export function CompanyFooter() {
           <p className="text-sm md:text-base font-medium tracking-tight">
             Email us at{" "}
             <a
-              href="mailto:info@denoko.com"
+              href="mailto:najeejere@gmail.com"
               className="font-black hover:underline active:underline"
               data-testid="link-email"
             >
-              info@denoko.com
+              najeejere@gmail.com
             </a>
           </p>
         </div>
