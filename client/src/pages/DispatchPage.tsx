@@ -22,6 +22,19 @@ interface SelectedAddress {
   placeId: string;
 }
 
+function formatPhoneNumber(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function isValidPhone(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 7;
+}
+
 export default function DispatchPage() {
   const [phase, setPhase] = useState<DispatchPhase>("splash");
   const [passcode, setPasscode] = useState("");
@@ -32,6 +45,8 @@ export default function DispatchPage() {
 
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
 
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [newNotes, setNewNotes] = useState("");
   const [addCallError, setAddCallError] = useState("");
@@ -86,6 +101,15 @@ export default function DispatchPage() {
     enabled: authed && !!dispatchCode,
     refetchInterval: 3000,
   });
+
+  const sortedCalls = [...calls].sort((a, b) => {
+    if (a.status === "DONE" && b.status !== "DONE") return 1;
+    if (a.status !== "DONE" && b.status === "DONE") return -1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  const activeCalls = calls.filter((c) => c.status !== "DONE");
+  const completedCalls = calls.filter((c) => c.status === "DONE");
 
   const fetchSuggestions = useCallback(async (query: string) => {
     if (query.length < 2) {
@@ -165,12 +189,14 @@ export default function DispatchPage() {
   };
 
   const addCallMutation = useMutation({
-    mutationFn: async (data: { address: string; notes?: string; lat: number; lng: number }) => {
+    mutationFn: async (data: { customerName: string; customerPhone: string; address: string; notes?: string; lat: number; lng: number }) => {
       const res = await fetch("/api/calls/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dispatchCode: dispatchCode.trim(),
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
           address: data.address,
           notes: data.notes,
           lat: data.lat,
@@ -184,6 +210,8 @@ export default function DispatchPage() {
       return res.json();
     },
     onSuccess: () => {
+      setNewCustomerName("");
+      setNewCustomerPhone("");
       setNewAddress("");
       setNewNotes("");
       setAddCallError("");
@@ -275,28 +303,31 @@ export default function DispatchPage() {
     });
 
     calls.forEach((call) => {
-      if (call.status === "DONE") return;
       const markerId = `call-${call.id}`;
       existingIds.add(markerId);
+      const isCompleted = call.status === "DONE";
 
       if (markersRef.current.has(markerId)) {
-        return;
+        const marker = markersRef.current.get(markerId)!;
+        const el = marker.getElement();
+        const pinColor = isCompleted ? "hsl(140,70%,40%)" : "hsl(50,100%,50%)";
+        el.style.cssText = `width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;`;
+      } else {
+        const pinColor = isCompleted ? "hsl(140,70%,40%)" : "hsl(50,100%,50%)";
+        const el = document.createElement("div");
+        el.style.cssText = `width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;`;
+
+        const popupContent = `<div style="font-weight:700;font-size:13px;color:#111;">${call.customerName}</div><div style="font-size:12px;color:#333;">${call.address}</div>`;
+        const popup = new mapboxgl.Popup({ offset: 15, closeButton: false }).setHTML(popupContent);
+
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([call.lng, call.lat])
+          .setPopup(popup)
+          .addTo(map);
+
+        el.addEventListener("click", () => setSelectedCall(call));
+        markersRef.current.set(markerId, marker);
       }
-
-      const el = document.createElement("div");
-      el.style.cssText = `width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid hsl(50,100%,50%);filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;`;
-
-      const popup = new mapboxgl.Popup({ offset: 15, closeButton: false }).setHTML(
-        `<div style="font-weight:700;font-size:13px;color:#111;">${call.address}</div>`
-      );
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([call.lng, call.lat])
-        .setPopup(popup)
-        .addTo(map);
-
-      el.addEventListener("click", () => setSelectedCall(call));
-      markersRef.current.set(markerId, marker);
     });
 
     markersRef.current.forEach((marker, id) => {
@@ -342,6 +373,14 @@ export default function DispatchPage() {
   };
 
   const handleAddCall = () => {
+    if (!newCustomerName.trim()) {
+      setAddCallError("Customer name is required");
+      return;
+    }
+    if (!newCustomerPhone.trim() || !isValidPhone(newCustomerPhone)) {
+      setAddCallError("A valid phone number is required");
+      return;
+    }
     if (!newAddress.trim()) {
       setAddCallError("Address is required");
       return;
@@ -352,6 +391,8 @@ export default function DispatchPage() {
     }
     setAddCallError("");
     addCallMutation.mutate({
+      customerName: newCustomerName.trim(),
+      customerPhone: newCustomerPhone.trim(),
       address: selectedAddress.address,
       notes: newNotes.trim() || undefined,
       lat: selectedAddress.lat,
@@ -364,6 +405,10 @@ export default function DispatchPage() {
     if (selectedCall?.id === callId) {
       setSelectedCall((prev) => (prev ? { ...prev, status } : null));
     }
+  };
+
+  const handlePickedUp = (callId: string) => {
+    handleUpdateStatus(callId, "DONE");
   };
 
   const focusOnMap = (lat: number, lng: number) => {
@@ -430,7 +475,7 @@ export default function DispatchPage() {
 
         <button
           onClick={handleLogin}
-          className="w-full py-5 text-2xl font-black tracking-wide border-[4px] border-current bg-transparent hover:bg-black/5 active:bg-black/10 transition-colors mt-8"
+          className="w-full py-5 text-2xl font-black tracking-wide border-[4px] border-current bg-transparent transition-colors mt-8"
           data-testid="button-enter-dashboard"
         >
           ENTER DASHBOARD
@@ -460,44 +505,102 @@ export default function DispatchPage() {
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* Left Panel */}
         <div className="lg:w-80 xl:w-96 border-r-0 lg:border-r-[3px] border-current overflow-y-auto shrink-0 flex flex-col">
+          {/* Stats Header */}
+          <div className="flex items-center gap-4 px-4 py-2 border-b-[3px] border-current flex-wrap">
+            <div className="flex items-center gap-2" data-testid="stats-active-calls">
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(50,100%,50%)", border: "2px solid currentColor" }} />
+              <span className="text-sm font-black">Active: {activeCalls.length}</span>
+            </div>
+            <div className="flex items-center gap-2" data-testid="stats-completed-calls">
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(140,70%,40%)" }} />
+              <span className="text-sm font-black">Completed: {completedCalls.length}</span>
+            </div>
+          </div>
+
           {/* Calls */}
           <div className="border-b-[3px] border-current p-4">
             <h2 className="text-2xl font-black mb-3" data-testid="text-calls-heading">CALLS</h2>
-            <div className="space-y-2 max-h-48 lg:max-h-64 overflow-y-auto">
-              {calls.length === 0 && (
+            <div className="space-y-2 max-h-48 lg:max-h-[400px] overflow-y-auto">
+              {sortedCalls.length === 0 && (
                 <p className="text-sm opacity-60 font-medium">No calls yet</p>
               )}
-              {calls.map((call) => (
-                <button
-                  key={call.id}
-                  onClick={() => {
-                    setSelectedCall(call);
-                    focusOnMap(call.lat, call.lng);
-                  }}
-                  className={`w-full text-left p-3 border-2 border-current hover:bg-black/5 transition-colors ${
-                    selectedCall?.id === call.id ? "bg-black/10" : ""
-                  }`}
-                  data-testid={`button-call-${call.id}`}
-                >
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="font-bold text-sm truncate">{call.address}</span>
-                    <span
-                      className={`text-xs font-black px-2 py-0.5 border border-current ${
-                        call.status === "NEW"
-                          ? "bg-white/80"
-                          : call.status === "ASSIGNED"
-                          ? "bg-orange-200"
-                          : "bg-green-200"
-                      }`}
+              {sortedCalls.map((call) => {
+                const isCompleted = call.status === "DONE";
+                return (
+                  <div
+                    key={call.id}
+                    className={`w-full text-left p-3 border-2 border-current transition-colors ${
+                      isCompleted ? "opacity-60" : ""
+                    } ${selectedCall?.id === call.id ? "bg-black/10" : ""}`}
+                    style={isCompleted ? { backgroundColor: "hsla(140,60%,70%,0.3)" } : undefined}
+                    data-testid={`card-call-${call.id}`}
+                  >
+                    <button
+                      onClick={() => {
+                        setSelectedCall(call);
+                        focusOnMap(call.lat, call.lng);
+                      }}
+                      className="w-full text-left"
+                      data-testid={`button-call-${call.id}`}
                     >
-                      {call.status}
-                    </span>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-0 h-0 shrink-0"
+                            style={{
+                              borderLeft: "6px solid transparent",
+                              borderRight: "6px solid transparent",
+                              borderBottom: `12px solid ${isCompleted ? "hsl(140,70%,40%)" : "currentColor"}`,
+                            }}
+                          />
+                          <span className="font-black text-sm" data-testid={`text-call-name-${call.id}`}>{call.customerName}</span>
+                        </div>
+                        <span
+                          className={`text-xs font-black px-2 py-0.5 border border-current ${
+                            call.status === "NEW"
+                              ? "bg-white/80"
+                              : call.status === "ASSIGNED"
+                              ? "bg-orange-200"
+                              : "bg-green-300"
+                          }`}
+                          data-testid={`badge-call-status-${call.id}`}
+                        >
+                          {isCompleted ? "COMPLETED" : call.status}
+                        </span>
+                      </div>
+                      <p className="text-xs font-bold mt-1" data-testid={`text-call-phone-${call.id}`}>{call.customerPhone}</p>
+                      <p className="text-xs opacity-70 mt-0.5 truncate" data-testid={`text-call-address-${call.id}`}>{call.address}</p>
+                      <p className="text-xs opacity-50 mt-0.5">
+                        {new Date(call.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                      </p>
+                    </button>
+
+                    {!isCompleted && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePickedUp(call.id);
+                        }}
+                        className="mt-2 w-full py-2 text-sm font-black tracking-wide border-2 border-current transition-colors"
+                        style={{ backgroundColor: "hsl(140,70%,85%)" }}
+                        data-testid={`button-picked-up-${call.id}`}
+                      >
+                        PICKED UP
+                      </button>
+                    )}
+
+                    {isCompleted && (
+                      <div
+                        className="mt-2 w-full py-2 text-sm font-black tracking-wide border-2 text-center opacity-70"
+                        style={{ backgroundColor: "hsl(140,70%,40%)", color: "white", borderColor: "hsl(140,70%,30%)" }}
+                        data-testid={`badge-completed-${call.id}`}
+                      >
+                        COMPLETED
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs opacity-60 mt-1">
-                    {new Date(call.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                  </p>
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -515,7 +618,7 @@ export default function DispatchPage() {
                   <button
                     key={driver.id}
                     onClick={() => focusOnMap(driver.lat, driver.lng)}
-                    className={`w-full text-left py-1.5 px-2 hover:bg-black/5 transition-colors flex items-center gap-2 ${
+                    className={`w-full text-left py-1.5 px-2 transition-colors flex items-center gap-2 ${
                       isStale ? "opacity-40" : ""
                     }`}
                     data-testid={`button-driver-${driver.id}`}
@@ -534,6 +637,30 @@ export default function DispatchPage() {
           {/* Add Call */}
           <div className="p-4">
             <h2 className="text-xl font-black mb-3" data-testid="text-add-call-heading">ADD CALL</h2>
+
+            <label className="text-sm font-bold">Customer Name</label>
+            <input
+              type="text"
+              value={newCustomerName}
+              onChange={(e) => { setNewCustomerName(e.target.value); setAddCallError(""); }}
+              className="w-full border-2 border-current bg-transparent px-3 py-2 text-sm font-medium mb-3 outline-none"
+              placeholder="Enter customer name"
+              data-testid="input-customer-name"
+            />
+
+            <label className="text-sm font-bold">Phone Number</label>
+            <input
+              type="tel"
+              value={newCustomerPhone}
+              onChange={(e) => {
+                setNewCustomerPhone(formatPhoneNumber(e.target.value));
+                setAddCallError("");
+              }}
+              className="w-full border-2 border-current bg-transparent px-3 py-2 text-sm font-medium mb-3 outline-none"
+              placeholder="(555) 123-4567"
+              data-testid="input-customer-phone"
+            />
+
             <label className="text-sm font-bold">Address</label>
             <div className="relative">
               <input
@@ -570,7 +697,7 @@ export default function DispatchPage() {
                       key={s.place_id}
                       onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s); }}
                       className={`w-full text-left px-3 py-2 text-sm font-medium cursor-pointer transition-colors ${
-                        i === highlightedIndex ? "bg-black/10" : "hover:bg-black/5"
+                        i === highlightedIndex ? "bg-black/10" : ""
                       }`}
                       data-testid={`suggestion-${i}`}
                     >
@@ -581,6 +708,7 @@ export default function DispatchPage() {
               )}
             </div>
             <div className="mb-3" />
+
             <label className="text-sm font-bold">Notes</label>
             <input
               type="text"
@@ -598,7 +726,7 @@ export default function DispatchPage() {
             <button
               onClick={handleAddCall}
               disabled={addCallMutation.isPending}
-              className="w-full py-3 text-lg font-black tracking-wide border-[3px] border-current bg-transparent hover:bg-black/5 active:bg-black/10 transition-colors disabled:opacity-50"
+              className="w-full py-3 text-lg font-black tracking-wide border-[3px] border-current bg-transparent transition-colors disabled:opacity-50"
               data-testid="button-drop-pin"
             >
               {addCallMutation.isPending ? "ADDING..." : "DROP PIN"}
@@ -635,7 +763,11 @@ export default function DispatchPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[10px] border-b-current" />
-                <span>Calls</span>
+                <span>Active Calls</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent" style={{ borderBottom: "10px solid hsl(140,70%,40%)" }} />
+                <span>Completed</span>
               </div>
             </div>
           </div>
@@ -647,15 +779,25 @@ export default function DispatchPage() {
                 CALL DETAILS
               </h2>
 
+              <p className="font-bold text-sm mb-1">Customer:</p>
+              <p className="text-base font-medium mb-2" data-testid="text-call-detail-name">
+                {selectedCall.customerName}
+              </p>
+
+              <p className="font-bold text-sm mb-1">Phone:</p>
+              <p className="text-base font-medium mb-2" data-testid="text-call-detail-phone">
+                {selectedCall.customerPhone}
+              </p>
+
               <p className="font-bold text-sm mb-1">Address:</p>
-              <p className="text-base font-medium mb-4" data-testid="text-call-detail-address">
+              <p className="text-base font-medium mb-2" data-testid="text-call-detail-address">
                 {selectedCall.address}
               </p>
 
               {selectedCall.notes && (
                 <>
                   <p className="font-bold text-sm mb-1">Notes:</p>
-                  <p className="text-base font-medium mb-4" data-testid="text-call-detail-notes">
+                  <p className="text-base font-medium mb-2" data-testid="text-call-detail-notes">
                     {selectedCall.notes}
                   </p>
                 </>
@@ -673,27 +815,37 @@ export default function DispatchPage() {
               <select
                 value={selectedCall.status}
                 onChange={(e) => handleUpdateStatus(selectedCall.id, e.target.value as CallStatus)}
-                className="w-full border-2 border-current bg-transparent px-3 py-2 font-bold text-sm outline-none mb-6 appearance-none cursor-pointer"
+                className="w-full border-2 border-current bg-transparent px-3 py-2 font-bold text-sm outline-none mb-4 appearance-none cursor-pointer"
+                disabled={selectedCall.status === "DONE"}
                 data-testid="select-call-status"
               >
                 <option value="NEW">NEW</option>
                 <option value="ASSIGNED">ASSIGNED</option>
-                <option value="DONE">DONE</option>
+                <option value="DONE">COMPLETED</option>
               </select>
 
-              {selectedCall.status !== "DONE" && (
+              {selectedCall.status !== "DONE" ? (
                 <button
-                  onClick={() => handleUpdateStatus(selectedCall.id, "DONE")}
-                  className="w-full py-3 text-lg font-black tracking-wide border-[3px] border-current bg-transparent hover:bg-black/5 active:bg-black/10 transition-colors"
-                  data-testid="button-mark-done"
+                  onClick={() => handlePickedUp(selectedCall.id)}
+                  className="w-full py-3 text-lg font-black tracking-wide border-[3px] border-current transition-colors"
+                  style={{ backgroundColor: "hsl(140,70%,85%)" }}
+                  data-testid="button-picked-up-detail"
                 >
-                  MARK AS DONE
+                  PICKED UP
                 </button>
+              ) : (
+                <div
+                  className="w-full py-3 text-lg font-black tracking-wide border-[3px] text-center"
+                  style={{ backgroundColor: "hsl(140,70%,40%)", color: "white", borderColor: "hsl(140,70%,30%)" }}
+                  data-testid="badge-completed-detail"
+                >
+                  COMPLETED
+                </div>
               )}
 
               <button
                 onClick={() => setSelectedCall(null)}
-                className="w-full mt-3 py-2 text-sm font-bold underline opacity-60 hover:opacity-100"
+                className="w-full mt-3 py-2 text-sm font-bold underline opacity-60"
                 data-testid="button-close-details"
               >
                 Close

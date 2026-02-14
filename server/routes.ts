@@ -110,7 +110,7 @@ export async function registerRoutes(
       return res.status(400).json({ error: "Invalid request" });
     }
 
-    const { dispatchCode, address, notes, lat: providedLat, lng: providedLng } = result.data;
+    const { dispatchCode, customerName, customerPhone, address, notes, lat: providedLat, lng: providedLng } = result.data;
 
     if (dispatchCode !== DISPATCH_GROUP_CODE) {
       return res.status(403).json({ error: "Invalid dispatch code" });
@@ -141,6 +141,8 @@ export async function registerRoutes(
 
     const call = await storage.createCall({
       dispatchCode,
+      customerName,
+      customerPhone,
       address,
       notes,
       lat,

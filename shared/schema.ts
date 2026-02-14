@@ -23,6 +23,8 @@ export const callStatusEnum = z.enum(["NEW", "ASSIGNED", "DONE"]);
 export const callSchema = z.object({
   id: z.string(),
   dispatchCode: z.string(),
+  customerName: z.string(),
+  customerPhone: z.string(),
   address: z.string(),
   notes: z.string().optional(),
   lat: z.number(),
@@ -33,6 +35,8 @@ export const callSchema = z.object({
 
 export const createCallSchema = z.object({
   dispatchCode: z.string(),
+  customerName: z.string().min(1, "Customer name is required"),
+  customerPhone: z.string().min(1, "Phone number is required"),
   address: z.string().min(1, "Address is required"),
   notes: z.string().optional(),
   lat: z.number().optional(),
