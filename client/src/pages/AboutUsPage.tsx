@@ -891,7 +891,7 @@ export default function AboutUsPage() {
             >
               <h3 className="text-2xl font-black mb-2">STARTER</h3>
               <p className="text-4xl md:text-5xl font-black mb-1">$99</p>
-              <p className="text-sm font-black mb-6">/month/driver</p>
+              <p className="text-sm font-black mb-6">/driver/month</p>
               <ul className="space-y-2 text-sm mb-8">
                 <li className="flex items-center gap-2">
                   <CheckSquare className="w-4 h-4 flex-shrink-0" />
@@ -932,7 +932,7 @@ export default function AboutUsPage() {
                 PROFESSIONAL
               </h3>
               <p className="text-4xl md:text-5xl font-black mb-1">$69</p>
-              <p className="text-sm font-black mb-6">/month/driver</p>
+              <p className="text-sm font-black mb-6">/driver/month</p>
               <ul className="space-y-2 text-sm mb-8">
                 <li className="flex items-center gap-2">
                   <CheckSquare className="w-4 h-4 flex-shrink-0" style={{ color: YELLOW }} />
