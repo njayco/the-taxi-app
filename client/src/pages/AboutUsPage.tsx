@@ -15,8 +15,8 @@ import {
   CheckSquare,
 } from "lucide-react";
 
-import heroImg from "@assets/4ACnycvj_1771051965567.png";
-import whoWeAreImg from "@assets/ahE4xJgt_1771051965567.png";
+import heroImg from "@/assets/images/hero-dashboard-wireframe.png";
+import whoWeAreImg from "@/assets/images/who-we-are-dashboard.png";
 import mapFilteringImg from "@assets/JYSc8ohr_1771051965567.png";
 
 const YELLOW = "#FFDD00";
