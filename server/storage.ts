@@ -1,7 +1,7 @@
 import type { Driver, Call, CallStatus, InsertCall } from "@shared/schema";
 import { calls } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql, or, ne } from "drizzle-orm";
 
 export interface CallFilters {
   dispatchCode: string;
@@ -16,6 +16,8 @@ export interface IStorage {
   createCall(data: InsertCall): Promise<Call>;
   getCalls(filters: CallFilters): Promise<Call[]>;
   updateCallStatus(callId: number, dispatchCode: string, status: CallStatus, farePriceCents?: number): Promise<Call | undefined>;
+  assignCall(callId: number, dispatchCode: string, driverId: string | null, driverName: string | null): Promise<Call | undefined>;
+  getCallsForDriver(driverId: string, filters: CallFilters): Promise<Call[]>;
 }
 
 class DriverMemStore {
@@ -62,7 +64,7 @@ export class DatabaseStorage implements IStorage {
 
     if (filters.status && filters.status !== "ALL") {
       if (filters.status === "NEW") {
-        conditions.push(eq(calls.status, "NEW"));
+        conditions.push(or(eq(calls.status, "NEW"), eq(calls.status, "ASSIGNED"))!);
       } else if (filters.status === "COMPLETED") {
         conditions.push(eq(calls.status, "DONE"));
       } else {
@@ -107,6 +109,61 @@ export class DatabaseStorage implements IStorage {
       .returning();
 
     return updated || undefined;
+  }
+
+  async assignCall(callId: number, dispatchCode: string, driverId: string | null, driverName: string | null): Promise<Call | undefined> {
+    const updateData: Record<string, any> = {
+      assignedDriverId: driverId,
+      assignedDriverName: driverName,
+      assignedAt: driverId ? new Date() : null,
+      updatedAt: new Date(),
+    };
+
+    if (driverId && driverName) {
+      updateData.status = "ASSIGNED";
+    } else {
+      updateData.status = "NEW";
+    }
+
+    const [updated] = await db
+      .update(calls)
+      .set(updateData)
+      .where(and(eq(calls.id, callId), eq(calls.dispatchCode, dispatchCode)))
+      .returning();
+
+    return updated || undefined;
+  }
+
+  async getCallsForDriver(driverId: string, filters: CallFilters): Promise<Call[]> {
+    const conditions = [
+      eq(calls.dispatchCode, filters.dispatchCode),
+      eq(calls.assignedDriverId, driverId),
+    ];
+
+    if (filters.status && filters.status !== "ALL") {
+      if (filters.status === "NEW") {
+        conditions.push(or(eq(calls.status, "NEW"), eq(calls.status, "ASSIGNED"))!);
+      } else if (filters.status === "COMPLETED") {
+        conditions.push(eq(calls.status, "DONE"));
+      } else {
+        conditions.push(eq(calls.status, filters.status));
+      }
+    }
+
+    if (filters.startDate) {
+      conditions.push(gte(calls.createdAt, new Date(filters.startDate)));
+    }
+    if (filters.endDate) {
+      const end = new Date(filters.endDate);
+      end.setHours(23, 59, 59, 999);
+      conditions.push(lte(calls.createdAt, end));
+    }
+
+    return db
+      .select()
+      .from(calls)
+      .where(and(...conditions))
+      .orderBy(desc(calls.createdAt));
   }
 }
 

@@ -13,6 +13,9 @@ export const calls = pgTable("calls", {
   lng: real("lng").notNull(),
   status: text("status").notNull().default("NEW"),
   farePriceCents: integer("fare_price_cents"),
+  assignedDriverId: text("assigned_driver_id"),
+  assignedDriverName: text("assigned_driver_name"),
+  assignedAt: timestamp("assigned_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
@@ -64,6 +67,15 @@ export const updateCallStatusSchema = z.object({
   status: callStatusEnum,
   farePriceCents: z.number().int().min(0).optional(),
 });
+
+export const assignCallSchema = z.object({
+  callId: z.number(),
+  dispatchCode: z.string(),
+  driverId: z.string().nullable(),
+  driverName: z.string().nullable(),
+});
+
+export type AssignCall = z.infer<typeof assignCallSchema>;
 
 export const validateDispatchCodeSchema = z.object({
   dispatchCode: z.string().min(1, "Dispatch code is required"),

@@ -22,6 +22,11 @@ interface SelectedAddress {
   placeId: string;
 }
 
+interface DriverStats {
+  tripsAssigned: number;
+  revenue: number;
+}
+
 type DateRange = "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS" | "LAST_6_MONTHS" | "LAST_12_MONTHS" | "ALL_TIME" | "CUSTOM";
 type StatusFilter = "ALL" | "NEW" | "COMPLETED";
 
@@ -40,6 +45,12 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   NEW: "New",
   COMPLETED: "Completed",
 };
+
+function isValidLngLat(lng: any, lat: any): boolean {
+  const L = Number(lng);
+  const A = Number(lat);
+  return Number.isFinite(L) && Number.isFinite(A) && Math.abs(L) <= 180 && Math.abs(A) <= 90;
+}
 
 function formatPhoneNumber(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 10);
@@ -102,6 +113,7 @@ export default function DispatchPage() {
   const [authed, setAuthed] = useState(false);
 
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
+  const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null);
 
   const urlFilters = getFiltersFromUrl();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(urlFilters.status);
@@ -126,7 +138,8 @@ export default function DispatchPage() {
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const callMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const driverMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const [mapToken, setMapToken] = useState("");
   const [mapError, setMapError] = useState("");
 
@@ -185,6 +198,26 @@ export default function DispatchPage() {
     refetchInterval: 3000,
   });
 
+  const { data: driverStats } = useQuery<DriverStats>({
+    queryKey: ["/api/driver/stats", selectedDriver?.id, dispatchCode, statusFilter, dateRange, customStartDate, customEndDate],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set("dispatchCode", dispatchCode);
+      params.set("driverId", selectedDriver!.id);
+      params.set("status", statusFilter);
+      params.set("range", dateRange);
+      if (dateRange === "CUSTOM") {
+        if (customStartDate) params.set("startDate", customStartDate);
+        if (customEndDate) params.set("endDate", customEndDate);
+      }
+      const res = await fetch(`/api/driver/stats?${params.toString()}`);
+      if (!res.ok) return { tripsAssigned: 0, revenue: 0 };
+      return res.json();
+    },
+    enabled: authed && !!dispatchCode && !!selectedDriver,
+    refetchInterval: 5000,
+  });
+
   const sortedCalls = [...calls].sort((a, b) => {
     if (a.status === "DONE" && b.status !== "DONE") return 1;
     if (a.status !== "DONE" && b.status === "DONE") return -1;
@@ -193,6 +226,7 @@ export default function DispatchPage() {
 
   const activeCalls = calls.filter((c) => c.status !== "DONE");
   const completedCalls = calls.filter((c) => c.status === "DONE");
+  const totalRevenue = calls.reduce((sum, c) => sum + (c.farePriceCents || 0), 0);
 
   const fetchSuggestions = useCallback(async (query: string) => {
     if (query.length < 2) {
@@ -230,6 +264,7 @@ export default function DispatchPage() {
 
   const selectSuggestion = (suggestion: AddressSuggestion) => {
     const [lng, lat] = suggestion.center;
+    if (!isValidLngLat(lng, lat)) return;
     setNewAddress(suggestion.place_name);
     setSelectedAddress({
       address: suggestion.place_name,
@@ -332,6 +367,28 @@ export default function DispatchPage() {
     },
   });
 
+  const assignCallMutation = useMutation({
+    mutationFn: async (data: { callId: number; driverId: string | null; driverName: string | null }) => {
+      const res = await fetch("/api/calls/assign", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          callId: data.callId,
+          dispatchCode: dispatchCode.trim(),
+          driverId: data.driverId,
+          driverName: data.driverName,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to assign");
+      return res.json();
+    },
+    onSuccess: (updatedCall: Call) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/calls/list"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/driver/stats"] });
+      setSelectedCall(updatedCall);
+    },
+  });
+
   useEffect(() => {
     if (phase !== "dashboard" || !authed || !mapToken || !mapContainerRef.current) return;
     if (mapRef.current) return;
@@ -351,29 +408,33 @@ export default function DispatchPage() {
     return () => {
       map.remove();
       mapRef.current = null;
+      callMarkersRef.current.clear();
+      driverMarkersRef.current.clear();
     };
   }, [phase, authed, mapToken]);
 
   useEffect(() => {
     if (!mapRef.current) return;
     const map = mapRef.current;
-    const existingIds = new Set<string>();
+    const existingDriverIds = new Set<string>();
 
     drivers.forEach((driver) => {
-      const markerId = `driver-${driver.id}`;
-      existingIds.add(markerId);
+      if (!isValidLngLat(driver.lng, driver.lat)) return;
+
+      const markerId = driver.id;
+      existingDriverIds.add(markerId);
 
       const lastSeenMs = Date.now() - new Date(driver.lastSeen).getTime();
       const isStale = lastSeenMs > 12000;
 
-      if (markersRef.current.has(markerId)) {
-        const marker = markersRef.current.get(markerId)!;
+      if (driverMarkersRef.current.has(markerId)) {
+        const marker = driverMarkersRef.current.get(markerId)!;
         marker.setLngLat([driver.lng, driver.lat]);
         const el = marker.getElement();
         el.style.opacity = isStale ? "0.4" : "1";
       } else {
         const el = document.createElement("div");
-        el.style.cssText = `width:16px;height:16px;background:hsl(0,0%,7%);border-radius:50%;border:3px solid hsl(50,100%,50%);opacity:${isStale ? "0.4" : "1"};`;
+        el.style.cssText = `width:16px;height:16px;background:hsl(0,0%,7%);border-radius:50%;border:3px solid hsl(50,100%,50%);opacity:${isStale ? "0.4" : "1"};cursor:pointer;`;
 
         const popup = new mapboxgl.Popup({ offset: 12, closeButton: false }).setHTML(
           `<div style="font-weight:700;font-size:13px;color:#111;">${driver.name}</div>`
@@ -384,27 +445,56 @@ export default function DispatchPage() {
           .setPopup(popup)
           .addTo(map);
 
-        markersRef.current.set(markerId, marker);
+        el.addEventListener("click", () => {
+          setSelectedDriver(driver);
+          setSelectedCall(null);
+        });
+
+        driverMarkersRef.current.set(markerId, marker);
       }
     });
 
-    calls.forEach((call) => {
-      const markerId = `call-${call.id}`;
-      existingIds.add(markerId);
-      const isCompleted = call.status === "DONE";
+    driverMarkersRef.current.forEach((marker, id) => {
+      if (!existingDriverIds.has(id)) {
+        marker.remove();
+        driverMarkersRef.current.delete(id);
+      }
+    });
+  }, [drivers]);
 
-      if (markersRef.current.has(markerId)) {
-        const marker = markersRef.current.get(markerId)!;
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const existingCallIds = new Set<string>();
+
+    calls.forEach((call) => {
+      if (!isValidLngLat(call.lng, call.lat)) return;
+
+      const markerId = String(call.id);
+      existingCallIds.add(markerId);
+      const isCompleted = call.status === "DONE";
+      const pinColor = isCompleted ? "hsl(140,70%,40%)" : "hsl(50,100%,50%)";
+
+      if (callMarkersRef.current.has(markerId)) {
+        const marker = callMarkersRef.current.get(markerId)!;
+        marker.setLngLat([call.lng, call.lat]);
         const el = marker.getElement();
-        const pinColor = isCompleted ? "hsl(140,70%,40%)" : "hsl(50,100%,50%)";
         el.style.cssText = `width:20px;height:20px;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;box-sizing:border-box;`;
+
+        const fareText = call.farePriceCents ? ` | ${formatFare(call.farePriceCents)}` : "";
+        const assignedText = call.assignedDriverName ? `<div style="font-size:11px;color:#555;font-weight:600;">Assigned: ${call.assignedDriverName}</div>` : "";
+        const popupContent = `<div style="font-weight:700;font-size:13px;color:#111;">${call.customerName}${fareText}</div><div style="font-size:12px;color:#333;">${call.address}</div>${assignedText}`;
+        const popup = marker.getPopup();
+        if (popup) {
+          popup.setHTML(popupContent);
+        }
       } else {
-        const pinColor = isCompleted ? "hsl(140,70%,40%)" : "hsl(50,100%,50%)";
         const el = document.createElement("div");
         el.style.cssText = `width:20px;height:20px;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;box-sizing:border-box;`;
 
         const fareText = call.farePriceCents ? ` | ${formatFare(call.farePriceCents)}` : "";
-        const popupContent = `<div style="font-weight:700;font-size:13px;color:#111;">${call.customerName}${fareText}</div><div style="font-size:12px;color:#333;">${call.address}</div>`;
+        const assignedText = call.assignedDriverName ? `<div style="font-size:11px;color:#555;font-weight:600;">Assigned: ${call.assignedDriverName}</div>` : "";
+        const popupContent = `<div style="font-weight:700;font-size:13px;color:#111;">${call.customerName}${fareText}</div><div style="font-size:12px;color:#333;">${call.address}</div>${assignedText}`;
         const popup = new mapboxgl.Popup({ offset: 15, closeButton: false }).setHTML(popupContent);
 
         const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
@@ -412,18 +502,28 @@ export default function DispatchPage() {
           .setPopup(popup)
           .addTo(map);
 
-        el.addEventListener("click", () => setSelectedCall(call));
-        markersRef.current.set(markerId, marker);
+        el.addEventListener("click", () => {
+          setSelectedCall(call);
+          setSelectedDriver(null);
+        });
+        callMarkersRef.current.set(markerId, marker);
       }
     });
 
-    markersRef.current.forEach((marker, id) => {
-      if (!existingIds.has(id)) {
+    callMarkersRef.current.forEach((marker, id) => {
+      if (!existingCallIds.has(id)) {
         marker.remove();
-        markersRef.current.delete(id);
+        callMarkersRef.current.delete(id);
       }
     });
-  }, [drivers, calls]);
+  }, [calls]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const t = window.setTimeout(() => map.resize(), 0);
+    return () => window.clearTimeout(t);
+  }, [selectedCall, selectedDriver, calls.length]);
 
   const handleLogin = async () => {
     setPasscodeError("");
@@ -510,7 +610,25 @@ export default function DispatchPage() {
     handleUpdateStatus(callId, "DONE");
   };
 
+  const handleAssignDriver = (callId: number, driverId: string | null) => {
+    if (driverId) {
+      const driver = drivers.find((d) => d.id === driverId);
+      assignCallMutation.mutate({
+        callId,
+        driverId,
+        driverName: driver?.name || driverId,
+      });
+    } else {
+      assignCallMutation.mutate({
+        callId,
+        driverId: null,
+        driverName: null,
+      });
+    }
+  };
+
   const focusOnMap = (lat: number, lng: number) => {
+    if (!isValidLngLat(lng, lat)) return;
     mapRef.current?.flyTo({ center: [lng, lat], zoom: 15, duration: 800 });
   };
 
@@ -583,13 +701,228 @@ export default function DispatchPage() {
     );
   }
 
+  const rightPanelContent = () => {
+    if (selectedDriver) {
+      const lastSeenMs = Date.now() - new Date(selectedDriver.lastSeen).getTime();
+      const isOnline = lastSeenMs <= 12000;
+      const assignedCallsCount = calls.filter((c) => c.assignedDriverId === selectedDriver.id).length;
+
+      return (
+        <div className="lg:w-72 xl:w-80 border-l-0 lg:border-l-[3px] border-current p-4 shrink-0 overflow-y-auto">
+          <h2 className="text-xl font-black mb-4" data-testid="text-driver-details-heading">
+            DRIVER DETAILS
+          </h2>
+
+          <p className="font-bold text-sm mb-1">Name:</p>
+          <p className="text-base font-black mb-2" data-testid="text-driver-detail-name">
+            {selectedDriver.name}
+          </p>
+
+          <p className="font-bold text-sm mb-1">Status:</p>
+          <div className="flex items-center gap-2 mb-3">
+            <span
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: isOnline ? "hsl(140,70%,40%)" : "hsl(0,70%,50%)" }}
+            />
+            <span
+              className="text-sm font-black px-2 py-0.5 border border-current"
+              style={{ backgroundColor: isOnline ? "hsl(140,70%,85%)" : "hsl(0,70%,90%)" }}
+              data-testid="badge-driver-status"
+            >
+              {isOnline ? "LIVE" : "OFFLINE"}
+            </span>
+          </div>
+
+          <p className="font-bold text-sm mb-1">Last Seen:</p>
+          <p className="text-sm font-medium mb-3" data-testid="text-driver-detail-lastseen">
+            {getTimeSince(selectedDriver.lastSeen)}
+          </p>
+
+          <div className="border-t-2 border-current pt-3 mt-2 space-y-3">
+            <p className="font-black text-sm tracking-wide">PERFORMANCE ({DATE_RANGE_LABELS[dateRange]})</p>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-bold">Trips Assigned:</span>
+              <span className="text-lg font-black" data-testid="text-driver-trips">
+                {driverStats?.tripsAssigned ?? assignedCallsCount}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-bold">Revenue:</span>
+              <span className="text-lg font-black" data-testid="text-driver-revenue">
+                {driverStats ? formatFare(driverStats.revenue) : "$0.00"}
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setSelectedDriver(null)}
+            className="w-full mt-4 py-2 text-sm font-bold underline opacity-60"
+            data-testid="button-close-driver-details"
+          >
+            Close
+          </button>
+        </div>
+      );
+    }
+
+    if (selectedCall) {
+      return (
+        <div className="lg:w-72 xl:w-80 border-l-0 lg:border-l-[3px] border-current p-4 shrink-0 overflow-y-auto">
+          <h2 className="text-xl font-black mb-4" data-testid="text-call-details-heading">
+            CALL DETAILS
+          </h2>
+
+          <p className="font-bold text-sm mb-1">Customer:</p>
+          <p className="text-base font-medium mb-2" data-testid="text-call-detail-name">
+            {selectedCall.customerName}
+          </p>
+
+          <p className="font-bold text-sm mb-1">Phone:</p>
+          <p className="text-base font-medium mb-2" data-testid="text-call-detail-phone">
+            {selectedCall.customerPhone}
+          </p>
+
+          <p className="font-bold text-sm mb-1">Address:</p>
+          <p className="text-base font-medium mb-2" data-testid="text-call-detail-address">
+            {selectedCall.address}
+          </p>
+
+          {selectedCall.farePriceCents && (
+            <>
+              <p className="font-bold text-sm mb-1">Fare:</p>
+              <p className="text-base font-black mb-2" data-testid="text-call-detail-fare">
+                {formatFare(selectedCall.farePriceCents)}
+              </p>
+            </>
+          )}
+
+          {selectedCall.notes && (
+            <>
+              <p className="font-bold text-sm mb-1">Notes:</p>
+              <p className="text-base font-medium mb-2" data-testid="text-call-detail-notes">
+                {selectedCall.notes}
+              </p>
+            </>
+          )}
+
+          <p className="font-bold text-sm mb-1">Created:</p>
+          <p className="text-base font-medium mb-3" data-testid="text-call-detail-time">
+            {new Date(selectedCall.createdAt).toLocaleTimeString([], {
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </p>
+
+          {selectedCall.completedAt && (
+            <>
+              <p className="font-bold text-sm mb-1">Completed:</p>
+              <p className="text-base font-medium mb-3" data-testid="text-call-detail-completed-time">
+                {new Date(selectedCall.completedAt).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            </>
+          )}
+
+          {selectedCall.assignedDriverName && (
+            <div className="mb-3">
+              <p className="font-bold text-sm mb-1">Assigned Driver:</p>
+              <span
+                className="inline-block text-sm font-black px-3 py-1 border-2 border-current"
+                style={{ backgroundColor: "hsl(50,100%,80%)" }}
+                data-testid="badge-assigned-driver"
+              >
+                {selectedCall.assignedDriverName}
+              </span>
+            </div>
+          )}
+
+          {selectedCall.status !== "DONE" && (
+            <div className="border-t-2 border-current pt-3 mt-2 mb-3">
+              <p className="font-bold text-sm mb-2">Assign Driver:</p>
+              <div className="flex gap-2 flex-wrap">
+                <select
+                  value={selectedCall.assignedDriverId || ""}
+                  onChange={(e) => handleAssignDriver(selectedCall.id, e.target.value || null)}
+                  className="flex-1 border-2 border-current bg-transparent px-3 py-2 font-bold text-sm outline-none appearance-none cursor-pointer"
+                  disabled={assignCallMutation.isPending}
+                  data-testid="select-assign-driver"
+                >
+                  <option value="">-- No Driver --</option>
+                  {drivers.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              {selectedCall.assignedDriverId && (
+                <button
+                  onClick={() => handleAssignDriver(selectedCall.id, null)}
+                  className="mt-2 w-full py-1.5 text-xs font-black tracking-wide border-2 border-current transition-colors"
+                  style={{ backgroundColor: "hsl(0,70%,90%)" }}
+                  disabled={assignCallMutation.isPending}
+                  data-testid="button-unassign-driver"
+                >
+                  UNASSIGN
+                </button>
+              )}
+            </div>
+          )}
+
+          <p className="font-bold text-sm mb-2">Status:</p>
+          <select
+            value={selectedCall.status}
+            onChange={(e) => handleUpdateStatus(selectedCall.id, e.target.value as CallStatus)}
+            className="w-full border-2 border-current bg-transparent px-3 py-2 font-bold text-sm outline-none mb-4 appearance-none cursor-pointer"
+            disabled={selectedCall.status === "DONE"}
+            data-testid="select-call-status"
+          >
+            <option value="NEW">NEW</option>
+            <option value="ASSIGNED">ASSIGNED</option>
+            <option value="DONE">COMPLETED</option>
+          </select>
+
+          {selectedCall.status !== "DONE" ? (
+            <button
+              onClick={() => handlePickedUp(selectedCall.id)}
+              className="w-full py-3 text-lg font-black tracking-wide border-[3px] border-current transition-colors"
+              style={{ backgroundColor: "hsl(140,70%,85%)" }}
+              data-testid="button-picked-up-detail"
+            >
+              PICKED UP
+            </button>
+          ) : (
+            <div
+              className="w-full py-3 text-lg font-black tracking-wide border-[3px] text-center"
+              style={{ backgroundColor: "hsl(140,70%,40%)", color: "white", borderColor: "hsl(140,70%,30%)" }}
+              data-testid="badge-completed-detail"
+            >
+              COMPLETED
+            </div>
+          )}
+
+          <button
+            onClick={() => setSelectedCall(null)}
+            className="w-full mt-3 py-2 text-sm font-bold underline opacity-60"
+            data-testid="button-close-details"
+          >
+            Close
+          </button>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div
       className="h-screen flex flex-col"
       style={{ backgroundColor: "hsl(50, 100%, 50%)", color: "hsl(0, 0%, 7%)" }}
       data-testid="dispatch-dashboard"
     >
-      {/* Header */}
       <header className="flex items-center justify-between gap-2 px-4 py-3 border-b-[3px] border-current shrink-0 flex-wrap">
         <TaxiLogo size="sm" />
         <h1 className="text-xl md:text-2xl font-black tracking-tight text-center flex-1" data-testid="text-dashboard-title">
@@ -600,11 +933,8 @@ export default function DispatchPage() {
         </span>
       </header>
 
-      {/* Content */}
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
-        {/* Left Panel */}
         <div className="lg:w-80 xl:w-96 border-r-0 lg:border-r-[3px] border-current overflow-y-auto shrink-0 flex flex-col">
-          {/* Unified Filter Bar */}
           <div className="px-4 py-3 border-b-[3px] border-current space-y-2">
             <h3 className="text-sm font-black tracking-wide" data-testid="text-filters-heading">FILTERS</h3>
             <div className="flex gap-2 flex-wrap">
@@ -655,7 +985,6 @@ export default function DispatchPage() {
             )}
           </div>
 
-          {/* Stats Header */}
           <div className="flex items-center gap-4 px-4 py-2 border-b-[3px] border-current flex-wrap">
             <div className="flex items-center gap-2" data-testid="stats-active-calls">
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(50,100%,50%)", border: "2px solid currentColor" }} />
@@ -665,12 +994,14 @@ export default function DispatchPage() {
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(140,70%,40%)" }} />
               <span className="text-sm font-black">Completed: {completedCalls.length}</span>
             </div>
+            <div className="flex items-center gap-2 ml-auto" data-testid="stats-total-revenue">
+              <span className="text-sm font-black">Revenue: {formatFare(totalRevenue)}</span>
+            </div>
             {callsLoading && (
-              <span className="text-xs font-bold opacity-50 ml-auto">Loading...</span>
+              <span className="text-xs font-bold opacity-50">Loading...</span>
             )}
           </div>
 
-          {/* Calls */}
           <div className="border-b-[3px] border-current p-4">
             <h2 className="text-2xl font-black mb-3" data-testid="text-calls-heading">CALLS</h2>
             <div className="space-y-2 max-h-48 lg:max-h-[400px] overflow-y-auto">
@@ -691,6 +1022,7 @@ export default function DispatchPage() {
                     <button
                       onClick={() => {
                         setSelectedCall(call);
+                        setSelectedDriver(null);
                         focusOnMap(call.lat, call.lng);
                       }}
                       className="w-full text-left"
@@ -707,6 +1039,11 @@ export default function DispatchPage() {
                             }}
                           />
                           <span className="font-black text-sm" data-testid={`text-call-name-${call.id}`}>{call.customerName}</span>
+                          {call.assignedDriverName && (
+                            <span className="text-xs font-bold opacity-70" data-testid={`text-call-assigned-${call.id}`}>
+                              &rarr; {call.assignedDriverName}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           {call.farePriceCents && (
@@ -764,7 +1101,6 @@ export default function DispatchPage() {
             </div>
           </div>
 
-          {/* Drivers Live */}
           <div className="border-b-[3px] border-current p-4">
             <h2 className="text-xl font-black mb-2" data-testid="text-drivers-heading">DRIVERS LIVE</h2>
             <div className="space-y-1">
@@ -774,17 +1110,27 @@ export default function DispatchPage() {
               {drivers.map((driver) => {
                 const lastSeenMs = Date.now() - new Date(driver.lastSeen).getTime();
                 const isStale = lastSeenMs > 12000;
+                const driverAssignedCount = calls.filter((c) => c.assignedDriverId === driver.id && c.status !== "DONE").length;
                 return (
                   <button
                     key={driver.id}
-                    onClick={() => focusOnMap(driver.lat, driver.lng)}
+                    onClick={() => {
+                      setSelectedDriver(driver);
+                      setSelectedCall(null);
+                      focusOnMap(driver.lat, driver.lng);
+                    }}
                     className={`w-full text-left py-1.5 px-2 transition-colors flex items-center gap-2 ${
                       isStale ? "opacity-40" : ""
-                    }`}
+                    } ${selectedDriver?.id === driver.id ? "bg-black/10" : ""}`}
                     data-testid={`button-driver-${driver.id}`}
                   >
                     <span className="w-3 h-3 rounded-full bg-current shrink-0" />
                     <span className="font-bold text-sm">{driver.name}</span>
+                    {driverAssignedCount > 0 && (
+                      <span className="text-xs font-black px-1.5 py-0.5 border border-current bg-orange-200" data-testid={`badge-driver-assigned-${driver.id}`}>
+                        {driverAssignedCount}
+                      </span>
+                    )}
                     <span className="text-xs opacity-60 ml-auto">
                       {isStale ? "(stale) " : ""}last seen {getTimeSince(driver.lastSeen)}
                     </span>
@@ -794,7 +1140,6 @@ export default function DispatchPage() {
             </div>
           </div>
 
-          {/* Add Call */}
           <div className="p-4">
             <h2 className="text-xl font-black mb-3" data-testid="text-add-call-heading">ADD CALL</h2>
 
@@ -907,9 +1252,7 @@ export default function DispatchPage() {
           </div>
         </div>
 
-        {/* Map + Right Panel */}
         <div className="flex-1 flex flex-col lg:flex-row min-h-0">
-          {/* Map */}
           <div className="flex-1 relative border-b-[3px] lg:border-b-0 border-current min-h-[300px]">
             <div
               className="absolute top-3 left-3 z-10 px-3 py-1.5 font-black text-sm"
@@ -925,7 +1268,6 @@ export default function DispatchPage() {
                 </p>
               </div>
             )}
-            {/* Legend */}
             <div
               className="absolute bottom-3 left-3 z-10 px-3 py-2 border-2 border-current text-xs font-bold space-y-1"
               style={{ backgroundColor: "hsl(50, 100%, 50%)" }}
@@ -945,107 +1287,7 @@ export default function DispatchPage() {
             </div>
           </div>
 
-          {/* Call Details - Right Panel */}
-          {selectedCall && (
-            <div className="lg:w-72 xl:w-80 border-l-0 lg:border-l-[3px] border-current p-4 shrink-0 overflow-y-auto">
-              <h2 className="text-xl font-black mb-4" data-testid="text-call-details-heading">
-                CALL DETAILS
-              </h2>
-
-              <p className="font-bold text-sm mb-1">Customer:</p>
-              <p className="text-base font-medium mb-2" data-testid="text-call-detail-name">
-                {selectedCall.customerName}
-              </p>
-
-              <p className="font-bold text-sm mb-1">Phone:</p>
-              <p className="text-base font-medium mb-2" data-testid="text-call-detail-phone">
-                {selectedCall.customerPhone}
-              </p>
-
-              <p className="font-bold text-sm mb-1">Address:</p>
-              <p className="text-base font-medium mb-2" data-testid="text-call-detail-address">
-                {selectedCall.address}
-              </p>
-
-              {selectedCall.farePriceCents && (
-                <>
-                  <p className="font-bold text-sm mb-1">Fare:</p>
-                  <p className="text-base font-black mb-2" data-testid="text-call-detail-fare">
-                    {formatFare(selectedCall.farePriceCents)}
-                  </p>
-                </>
-              )}
-
-              {selectedCall.notes && (
-                <>
-                  <p className="font-bold text-sm mb-1">Notes:</p>
-                  <p className="text-base font-medium mb-2" data-testid="text-call-detail-notes">
-                    {selectedCall.notes}
-                  </p>
-                </>
-              )}
-
-              <p className="font-bold text-sm mb-1">Created:</p>
-              <p className="text-base font-medium mb-4" data-testid="text-call-detail-time">
-                {new Date(selectedCall.createdAt).toLocaleTimeString([], {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </p>
-
-              {selectedCall.completedAt && (
-                <>
-                  <p className="font-bold text-sm mb-1">Completed:</p>
-                  <p className="text-base font-medium mb-4" data-testid="text-call-detail-completed-time">
-                    {new Date(selectedCall.completedAt).toLocaleTimeString([], {
-                      hour: "numeric",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </>
-              )}
-
-              <p className="font-bold text-sm mb-2">Status:</p>
-              <select
-                value={selectedCall.status}
-                onChange={(e) => handleUpdateStatus(selectedCall.id, e.target.value as CallStatus)}
-                className="w-full border-2 border-current bg-transparent px-3 py-2 font-bold text-sm outline-none mb-4 appearance-none cursor-pointer"
-                disabled={selectedCall.status === "DONE"}
-                data-testid="select-call-status"
-              >
-                <option value="NEW">NEW</option>
-                <option value="ASSIGNED">ASSIGNED</option>
-                <option value="DONE">COMPLETED</option>
-              </select>
-
-              {selectedCall.status !== "DONE" ? (
-                <button
-                  onClick={() => handlePickedUp(selectedCall.id)}
-                  className="w-full py-3 text-lg font-black tracking-wide border-[3px] border-current transition-colors"
-                  style={{ backgroundColor: "hsl(140,70%,85%)" }}
-                  data-testid="button-picked-up-detail"
-                >
-                  PICKED UP
-                </button>
-              ) : (
-                <div
-                  className="w-full py-3 text-lg font-black tracking-wide border-[3px] text-center"
-                  style={{ backgroundColor: "hsl(140,70%,40%)", color: "white", borderColor: "hsl(140,70%,30%)" }}
-                  data-testid="badge-completed-detail"
-                >
-                  COMPLETED
-                </div>
-              )}
-
-              <button
-                onClick={() => setSelectedCall(null)}
-                className="w-full mt-3 py-2 text-sm font-bold underline opacity-60"
-                data-testid="button-close-details"
-              >
-                Close
-              </button>
-            </div>
-          )}
+          {rightPanelContent()}
         </div>
       </div>
     </div>

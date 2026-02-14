@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
-import { driverUpdateSchema, createCallSchema, updateCallStatusSchema, validateDispatchCodeSchema, dispatchLoginSchema } from "@shared/schema";
+import { driverUpdateSchema, createCallSchema, updateCallStatusSchema, assignCallSchema, validateDispatchCodeSchema, dispatchLoginSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -225,6 +225,104 @@ export async function registerRoutes(
     } catch (err) {
       console.error("Failed to fetch calls:", err);
       res.status(500).json({ error: "Failed to fetch calls" });
+    }
+  });
+
+  app.patch("/api/calls/assign", async (req, res) => {
+    const result = assignCallSchema.safeParse(req.body);
+    if (!result.success) {
+      return res.status(400).json({ error: "Invalid request", details: result.error.flatten() });
+    }
+
+    const { callId, dispatchCode, driverId, driverName } = result.data;
+
+    if (dispatchCode !== DISPATCH_GROUP_CODE) {
+      return res.status(403).json({ error: "Invalid dispatch code" });
+    }
+
+    try {
+      const call = await storage.assignCall(callId, dispatchCode, driverId, driverName);
+      if (!call) {
+        return res.status(404).json({ error: "Call not found" });
+      }
+      res.json(call);
+    } catch (err) {
+      console.error("Failed to assign call:", err);
+      res.status(500).json({ error: "Failed to assign call" });
+    }
+  });
+
+  app.get("/api/driver/stats", async (req, res) => {
+    const dispatchCode = req.query.dispatchCode as string;
+    const driverId = req.query.driverId as string;
+    if (!dispatchCode || !driverId) {
+      return res.status(400).json({ error: "dispatchCode and driverId required" });
+    }
+
+    const status = (req.query.status as string) || "ALL";
+    const range = (req.query.range as string) || "ALL_TIME";
+    const startDateParam = req.query.startDate as string;
+    const endDateParam = req.query.endDate as string;
+
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+    const now = new Date();
+
+    switch (range) {
+      case "TODAY": {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        startDate = today.toISOString();
+        break;
+      }
+      case "LAST_7_DAYS": {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 7);
+        startDate = d.toISOString();
+        break;
+      }
+      case "LAST_30_DAYS": {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 30);
+        startDate = d.toISOString();
+        break;
+      }
+      case "LAST_6_MONTHS": {
+        const d = new Date(now);
+        d.setMonth(d.getMonth() - 6);
+        startDate = d.toISOString();
+        break;
+      }
+      case "LAST_12_MONTHS": {
+        const d = new Date(now);
+        d.setFullYear(d.getFullYear() - 1);
+        startDate = d.toISOString();
+        break;
+      }
+      case "CUSTOM": {
+        if (startDateParam) startDate = startDateParam;
+        if (endDateParam) endDate = endDateParam;
+        break;
+      }
+      case "ALL_TIME":
+      default:
+        break;
+    }
+
+    try {
+      const driverCalls = await storage.getCallsForDriver(driverId, {
+        dispatchCode,
+        status,
+        startDate,
+        endDate,
+      });
+
+      const tripsAssigned = driverCalls.length;
+      const revenue = driverCalls.reduce((sum, c) => sum + (c.farePriceCents || 0), 0);
+
+      res.json({ tripsAssigned, revenue });
+    } catch (err) {
+      console.error("Failed to get driver stats:", err);
+      res.status(500).json({ error: "Failed to get driver stats" });
     }
   });
 

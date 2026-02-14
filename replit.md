@@ -1,7 +1,7 @@
 # Denoko Taxi Dispatch MVP - The Taxi Company
 
 ## Overview
-A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Features live driver GPS tracking on a map, dispatcher-created call pins with customer name/phone, "Picked Up" completion workflow, fare pricing, server-side filtering, and dispatch code grouping.
+A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Features live driver GPS tracking on a map, dispatcher-created call pins with customer name/phone, "Picked Up" completion workflow, fare pricing, server-side filtering, dispatch code grouping, call-to-driver assignment, and driver performance stats.
 
 ## Tech Stack
 - Frontend: React + TypeScript + Tailwind CSS + Wouter (routing)
@@ -13,16 +13,16 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 - `shared/schema.ts` - Drizzle table definitions (calls table) + Zod schemas for validation + TypeScript types
 - `server/db.ts` - PostgreSQL connection via pg + Drizzle ORM
 - `server/storage.ts` - DatabaseStorage class for calls (DB) + DriverMemStore for drivers (in-memory)
-- `server/routes.ts` - API routes for driver location, calls CRUD with server-side filtering, dispatch code validation, geocoding
+- `server/routes.ts` - API routes for driver location, calls CRUD with server-side filtering, dispatch code validation, geocoding, call assignment, driver stats
 - `client/src/pages/HomePage.tsx` - Entry splash page with loading bar and Enter button
 - `client/src/pages/Landing.tsx` - Role selection page (Driver vs Dispatch) at /select
 - `client/src/pages/DriverPage.tsx` - Driver setup, GPS sharing (splash -> setup -> active)
-- `client/src/pages/DispatchPage.tsx` - Dispatch login, dashboard with map, calls, drivers, unified filters (splash -> login -> dashboard)
+- `client/src/pages/DispatchPage.tsx` - Dispatch login, dashboard with map, calls, drivers, unified filters, call assignment, driver details panel (splash -> login -> dashboard)
 - `client/src/components/TaxiLogo.tsx` - Branded taxi logo component
 - `client/src/components/SplashScreen.tsx` - Loading splash screen
 
 ## Database Schema
-- `calls` table: id (serial PK), dispatch_code, customer_name, customer_phone, address, notes, lat, lng, status (NEW/ASSIGNED/DONE), fare_price_cents (int, nullable), created_at, updated_at, completed_at
+- `calls` table: id (serial PK), dispatch_code, customer_name, customer_phone, address, notes, lat, lng, status (NEW/ASSIGNED/DONE), fare_price_cents (int, nullable), assigned_driver_id (text, nullable), assigned_driver_name (text, nullable), assigned_at (timestamp, nullable), created_at, updated_at, completed_at
 
 ## Environment Variables (Secrets)
 - `DATABASE_URL` - PostgreSQL connection string (auto-provisioned)
@@ -37,14 +37,24 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 - `POST /api/dispatch/login` - Dispatch login with passcode + dispatch code
 - `POST /api/driver/update-location` - Driver GPS update (every 5s)
 - `GET /api/driver/list?dispatchCode=...` - List drivers by dispatch code
+- `GET /api/driver/stats?dispatchCode=...&driverId=...&status=...&range=...` - Get driver performance stats (trips assigned, revenue) within filters
 - `POST /api/calls/create` - Create call with customerName, customerPhone, address, farePriceCents (optional)
 - `GET /api/calls/list?dispatchCode=...&status=...&range=...&startDate=...&endDate=...` - List calls with server-side filtering
   - status: ALL | NEW | COMPLETED
   - range: TODAY | LAST_7_DAYS | LAST_30_DAYS | LAST_6_MONTHS | LAST_12_MONTHS | ALL_TIME | CUSTOM
   - startDate/endDate: YYYY-MM-DD (when range=CUSTOM)
 - `PATCH /api/calls/update-status` - Update call status + optional farePriceCents
+- `PATCH /api/calls/assign` - Assign/unassign a call to a driver (callId, driverId, driverName)
 - `GET /api/mapbox-token` - Get Mapbox public token for frontend
 - `GET /api/geocode/autocomplete?q=...` - Address autocomplete (US-only, proxies Mapbox Geocoding API)
+
+## Map Marker Management
+- Map is initialized once via useEffect with empty dependency array
+- Call markers stored in callMarkersRef (Map keyed by call id)
+- Driver markers stored in driverMarkersRef (Map keyed by driver id)
+- isValidLngLat() guard prevents markers from jumping to (0,0)
+- Markers are updated via setLngLat() instead of being recreated
+- map.resize() called when layout changes (panel open/close)
 
 ## Design Theme
 - Taxi yellow (#FFDD00 / hsl(50, 100%, 50%)) background
@@ -54,6 +64,7 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 
 ## Data Fetching
 - Dispatch dashboard uses TanStack Query with refetchInterval (3s) for drivers and calls
+- Driver stats use TanStack Query with refetchInterval (5s)
 - Query keys include filter params for proper cache invalidation
 - Mutations use cache invalidation via queryClient.invalidateQueries
 - Driver page uses raw fetch for GPS location updates (every 5s)
