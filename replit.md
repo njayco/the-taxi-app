@@ -40,7 +40,13 @@ A hybrid taxi dispatch web app for The Taxi Company (A Denoko Cooperative). Feat
 - Bold, blocky typography (Inter font)
 - Thick borders, large buttons, high-contrast UI
 
+## Data Fetching
+- Dispatch dashboard uses TanStack Query with refetchInterval (3s) for drivers and calls
+- Mutations use cache invalidation via queryClient.invalidateQueries
+- Driver page uses raw fetch for GPS location updates (every 5s)
+
 ## User Preferences
 - Mobile-first responsive design
 - Yellow/black taxi branding throughout
 - No dark mode (themed app)
+- Custom taxi-themed UI (not standard shadcn styling) per user design requirements
