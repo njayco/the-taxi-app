@@ -1,0 +1,339 @@
+Here’s a **copy-and-paste GenSpark prompt** you can use to generate a powerful About Us page design for:
+
+👉 **DenokoTaxi.com/about-us**
+
+This prompt tells GenSpark exactly what to design, how it should look (Zune / Windows Phone inspired), what screenshots to include, and what messaging to write.
+
+---
+
+## 🎨 GENSPARK PROMPT
+
+You are designing a modern About Us webpage for:
+
+DenokoTaxi.com/about-us
+
+This is the official About page for:
+
+Denoko Taxi Dispatch
+A Denoko Cooperative
+
+---
+
+## 🎨 DESIGN STYLE (VERY IMPORTANT)
+
+The entire page must be visually inspired by:
+
+* Microsoft Zune UI
+* Microsoft Windows Phone (Metro design system)
+* Bold typography
+* Clean grid layouts
+* Large section headers
+* Heavy use of whitespace
+* Block-based layout
+* Flat design
+* Sharp lines
+* No rounded UI fluff
+* Strong black + yellow color identity (#FFDD00)
+
+Use:
+
+* Helvetica / Inter font family
+* Bold black typography
+* Large uppercase headings
+* High contrast
+* Minimal gradients
+* Tile-based layout sections
+* Motion-friendly layout (designed for scroll storytelling)
+
+The design must feel:
+Industrial. Modern. Functional. Powerful. Cooperative.
+
+---
+
+# 🏁 HERO SECTION
+
+Title (large Metro-style typography):
+
+DENOKO TAXI
+Hybrid Dispatch. Real-Time Control.
+
+Subtext:
+
+A live taxi dispatch platform built for dispatchers and drivers to operate smarter, faster, and more efficiently.
+
+Background:
+Full-width yellow background (#FFDD00)
+Black typography
+Include mockup screenshots of:
+
+* Dispatch dashboard map view
+* Driver mobile screen
+* Call pins (yellow and green)
+* Driver status LIVE indicator
+
+Add subtle Metro-style section labels like:
+WHO WE ARE
+HOW IT WORKS
+OUR MISSION
+THE DENOKO COOPERATIVE
+
+---
+
+# 🚕 WHO WE ARE SECTION
+
+Design as large bold text blocks with left-aligned grid layout.
+
+Content to write:
+
+Denoko Taxi Dispatch is a hybrid taxi dispatch system built for real-world taxi companies that rely on live coordination between dispatchers and drivers.
+
+We empower:
+
+• Dispatchers with real-time visibility
+• Drivers with simple GPS sharing tools
+• Taxi companies with structured, organized call management
+
+Denoko Taxi is built under the Denoko Cooperative — a mission-driven organization focused on economic empowerment, ownership, and operational excellence.
+
+Include screenshots of:
+
+* Live driver map markers
+* Call details panel
+* Stats header (Active Calls, Completed, Revenue)
+
+---
+
+# ⚙️ HOW THE APP WORKS (Break Down Clearly)
+
+Design this section as a Metro-style step-by-step tile layout.
+
+Use large numeric step blocks.
+
+---
+
+## DRIVER MODE
+
+Tile 01
+Drivers enter their name and dispatch group code
+Simple onboarding, no friction.
+
+Tile 02
+Tap “Start Sharing”
+GPS location updates every 5 seconds.
+
+Tile 03
+Driver appears live on dispatcher’s map
+Status automatically shows LIVE if updated within 15 seconds.
+
+Tile 04
+Receive assigned trips
+Complete trips. Generate revenue.
+
+Include mobile driver screenshots.
+
+---
+
+## DISPATCH MODE
+
+Tile 01
+Secure login using passcode + dispatch code.
+
+Tile 02
+Live map shows all active drivers in real time.
+
+Tile 03
+Create calls:
+• Customer name
+• Phone number
+• Address (autocomplete)
+• Optional fare price
+
+Tile 04
+Assign drivers via dropdown.
+
+Tile 05
+Mark “Picked Up” → Call turns green.
+
+Tile 06
+Track performance:
+• Active calls
+• Completed calls
+• Revenue
+• Driver stats
+
+Include:
+
+* Screenshot of map with yellow active pins
+* Screenshot with green completed pins
+* Screenshot of driver details panel showing LIVE/OFFLINE
+* Screenshot of date filter dropdown
+
+---
+
+# 🗺 MAP & FILTERING FEATURES
+
+Design as bold left column text + right column screenshot layout.
+
+Explain:
+
+• Yellow pins = Active calls
+• Green pins = Completed calls
+• Server-side filtering by:
+
+* Today
+* Last 7 Days
+* Last 30 Days
+* Last 6 Months
+* Last 12 Months
+* All Time
+* Custom Range
+
+• Auto-refresh dashboard every 3 seconds
+• Driver LIVE/OFFLINE based on unified 15-second threshold
+• Real-time “Last Seen” updates every second
+
+Include dashboard screenshot with filters visible.
+
+---
+
+# 📊 CALL WORKFLOW SECTION
+
+Use horizontal Metro-style flow layout.
+
+Dispatcher enters customer info →
+Pin preview appears →
+Drop Pin →
+Assign Driver →
+Picked Up →
+Revenue Logged.
+
+Use bold arrows between steps.
+
+---
+
+# 🧠 TECH STACK SECTION
+
+Clean black background with yellow typography.
+
+Title:
+
+BUILT FOR PERFORMANCE
+
+List:
+
+Frontend:
+React + TypeScript + Tailwind CSS
+
+Backend:
+Express.js (Node.js)
+
+Database:
+PostgreSQL + Drizzle ORM
+
+Maps:
+Mapbox GL JS
+
+Architecture:
+Live polling (3-second intervals)
+Ephemeral in-memory driver GPS
+Persistent call records in PostgreSQL
+
+Make this section minimal but strong.
+
+---
+
+# 🌍 THE DENOKO COOPERATIVE (VERY IMPORTANT)
+
+Design this section as a powerful manifesto.
+
+Title:
+
+THE DENOKO COOPERATIVE
+
+Content to include:
+
+Denoko Taxi is part of the Denoko Cooperative — a mission-driven collective focused on building tools that empower workers, not replace them.
+
+We believe:
+
+• Drivers deserve clarity, not chaos
+• Dispatchers deserve visibility, not guesswork
+• Taxi companies deserve systems, not spreadsheets
+• Communities deserve cooperative ownership
+
+Our ethos:
+
+Technology should serve people.
+Organization creates opportunity.
+Ownership builds generational strength.
+
+Denoko builds platforms that help local businesses operate with enterprise-level power — without losing human connection.
+
+This is dispatch done differently.
+This is cooperative technology.
+
+---
+
+# 📱 SCREENSHOT REQUIREMENTS
+
+Use realistic mockups of:
+
+• denokotaxi.com dispatch dashboard
+• Map view with drivers and calls
+• Driver mobile view
+• Call creation panel
+• Driver details panel
+• Filters dropdown
+• Stats header
+
+Mockups should match:
+Yellow + black theme
+Metro grid layout
+Sharp typography
+High contrast
+
+---
+
+# 🎯 FINAL SECTION
+
+Large centered typography:
+
+READY TO DISPATCH SMARTER?
+
+Button style:
+Large black button on yellow background.
+
+CTA:
+View Live Demo
+Contact Denoko Cooperative
+
+---
+
+# DESIGN RULES
+
+• Use large typography blocks
+• Minimal paragraph clutter
+• Strong visual hierarchy
+• Heavy Zune / Windows Phone Metro influence
+• Sharp layout grid
+• Yellow + Black brand consistency
+• Professional but bold
+
+This page must feel like:
+
+Uber-level tech
+But community-owned.
+Industrial.
+Modern.
+Efficient.
+
+---
+
+If you'd like, I can now also:
+
+• Write the actual HTML/Tailwind layout
+• Create a matching landing page prompt
+• Create a full brand voice guide for Denoko Taxi
+• Help you position Denoko Taxi as a SaaS product
+
+Let me know what move we making next 🚕
