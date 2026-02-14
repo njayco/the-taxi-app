@@ -22,6 +22,25 @@ interface SelectedAddress {
   placeId: string;
 }
 
+type DateRange = "TODAY" | "LAST_7_DAYS" | "LAST_30_DAYS" | "LAST_6_MONTHS" | "LAST_12_MONTHS" | "ALL_TIME" | "CUSTOM";
+type StatusFilter = "ALL" | "NEW" | "COMPLETED";
+
+const DATE_RANGE_LABELS: Record<DateRange, string> = {
+  TODAY: "Today",
+  LAST_7_DAYS: "Last 7 Days",
+  LAST_30_DAYS: "Last 30 Days",
+  LAST_6_MONTHS: "Last 6 Months",
+  LAST_12_MONTHS: "Last 12 Months",
+  ALL_TIME: "All Time",
+  CUSTOM: "Custom",
+};
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  ALL: "All",
+  NEW: "New",
+  COMPLETED: "Completed",
+};
+
 function formatPhoneNumber(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 10);
   if (digits.length === 0) return "";
@@ -35,6 +54,45 @@ function isValidPhone(value: string): boolean {
   return digits.length >= 7;
 }
 
+function formatFare(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function parseFareInput(value: string): number | null {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  const num = parseFloat(cleaned);
+  if (isNaN(num) || num < 0) return null;
+  return Math.round(num * 100);
+}
+
+function getFiltersFromUrl(): { status: StatusFilter; range: DateRange; startDate: string; endDate: string } {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    status: (params.get("status") as StatusFilter) || "ALL",
+    range: (params.get("range") as DateRange) || "TODAY",
+    startDate: params.get("startDate") || "",
+    endDate: params.get("endDate") || "",
+  };
+}
+
+function updateUrlFilters(filters: { status: StatusFilter; range: DateRange; startDate: string; endDate: string }) {
+  const params = new URLSearchParams(window.location.search);
+  params.set("status", filters.status);
+  params.set("range", filters.range);
+  if (filters.range === "CUSTOM" && filters.startDate) {
+    params.set("startDate", filters.startDate);
+  } else {
+    params.delete("startDate");
+  }
+  if (filters.range === "CUSTOM" && filters.endDate) {
+    params.set("endDate", filters.endDate);
+  } else {
+    params.delete("endDate");
+  }
+  const newUrl = `${window.location.pathname}?${params.toString()}`;
+  window.history.replaceState({}, "", newUrl);
+}
+
 export default function DispatchPage() {
   const [phase, setPhase] = useState<DispatchPhase>("splash");
   const [passcode, setPasscode] = useState("");
@@ -45,10 +103,17 @@ export default function DispatchPage() {
 
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
 
+  const urlFilters = getFiltersFromUrl();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(urlFilters.status);
+  const [dateRange, setDateRange] = useState<DateRange>(urlFilters.range);
+  const [customStartDate, setCustomStartDate] = useState(urlFilters.startDate);
+  const [customEndDate, setCustomEndDate] = useState(urlFilters.endDate);
+
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [newNotes, setNewNotes] = useState("");
+  const [newFare, setNewFare] = useState("");
   const [addCallError, setAddCallError] = useState("");
   const [selectedAddress, setSelectedAddress] = useState<SelectedAddress | null>(null);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -66,6 +131,10 @@ export default function DispatchPage() {
   const [mapError, setMapError] = useState("");
 
   useEffect(() => {
+    updateUrlFilters({ status: statusFilter, range: dateRange, startDate: customStartDate, endDate: customEndDate });
+  }, [statusFilter, dateRange, customStartDate, customEndDate]);
+
+  useEffect(() => {
     fetch("/api/mapbox-token")
       .then((r) => r.json())
       .then((d) => {
@@ -80,6 +149,18 @@ export default function DispatchPage() {
       });
   }, []);
 
+  const buildQueryString = () => {
+    const params = new URLSearchParams();
+    params.set("dispatchCode", dispatchCode);
+    params.set("status", statusFilter);
+    params.set("range", dateRange);
+    if (dateRange === "CUSTOM") {
+      if (customStartDate) params.set("startDate", customStartDate);
+      if (customEndDate) params.set("endDate", customEndDate);
+    }
+    return params.toString();
+  };
+
   const { data: drivers = [] } = useQuery<Driver[]>({
     queryKey: ["/api/driver/list", dispatchCode],
     queryFn: async () => {
@@ -91,10 +172,12 @@ export default function DispatchPage() {
     refetchInterval: 3000,
   });
 
-  const { data: calls = [] } = useQuery<Call[]>({
-    queryKey: ["/api/calls/list", dispatchCode],
+  const callsQueryKey = ["/api/calls/list", dispatchCode, statusFilter, dateRange, customStartDate, customEndDate];
+
+  const { data: calls = [], isLoading: callsLoading } = useQuery<Call[]>({
+    queryKey: callsQueryKey,
     queryFn: async () => {
-      const res = await fetch(`/api/calls/list?dispatchCode=${encodeURIComponent(dispatchCode)}`);
+      const res = await fetch(`/api/calls/list?${buildQueryString()}`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -189,7 +272,7 @@ export default function DispatchPage() {
   };
 
   const addCallMutation = useMutation({
-    mutationFn: async (data: { customerName: string; customerPhone: string; address: string; notes?: string; lat: number; lng: number }) => {
+    mutationFn: async (data: { customerName: string; customerPhone: string; address: string; notes?: string; lat: number; lng: number; farePriceCents?: number }) => {
       const res = await fetch("/api/calls/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -201,6 +284,7 @@ export default function DispatchPage() {
           notes: data.notes,
           lat: data.lat,
           lng: data.lng,
+          farePriceCents: data.farePriceCents,
         }),
       });
       if (!res.ok) {
@@ -214,13 +298,14 @@ export default function DispatchPage() {
       setNewCustomerPhone("");
       setNewAddress("");
       setNewNotes("");
+      setNewFare("");
       setAddCallError("");
       setSelectedAddress(null);
       if (previewMarkerRef.current) {
         previewMarkerRef.current.remove();
         previewMarkerRef.current = null;
       }
-      queryClient.invalidateQueries({ queryKey: ["/api/calls/list", dispatchCode] });
+      queryClient.invalidateQueries({ queryKey: ["/api/calls/list"] });
     },
     onError: (err: Error) => {
       setAddCallError(err.message || "Failed to add call");
@@ -228,7 +313,7 @@ export default function DispatchPage() {
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: async (data: { callId: string; status: CallStatus }) => {
+    mutationFn: async (data: { callId: number; status: CallStatus; farePriceCents?: number }) => {
       const res = await fetch("/api/calls/update-status", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -236,13 +321,14 @@ export default function DispatchPage() {
           callId: data.callId,
           dispatchCode: dispatchCode.trim(),
           status: data.status,
+          farePriceCents: data.farePriceCents,
         }),
       });
       if (!res.ok) throw new Error("Failed to update");
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/calls/list", dispatchCode] });
+      queryClient.invalidateQueries({ queryKey: ["/api/calls/list"] });
     },
   });
 
@@ -317,7 +403,8 @@ export default function DispatchPage() {
         const el = document.createElement("div");
         el.style.cssText = `width:20px;height:20px;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:20px solid ${pinColor};filter:drop-shadow(0 1px 2px rgba(0,0,0,.5));cursor:pointer;box-sizing:border-box;`;
 
-        const popupContent = `<div style="font-weight:700;font-size:13px;color:#111;">${call.customerName}</div><div style="font-size:12px;color:#333;">${call.address}</div>`;
+        const fareText = call.farePriceCents ? ` | ${formatFare(call.farePriceCents)}` : "";
+        const popupContent = `<div style="font-weight:700;font-size:13px;color:#111;">${call.customerName}${fareText}</div><div style="font-size:12px;color:#333;">${call.address}</div>`;
         const popup = new mapboxgl.Popup({ offset: 15, closeButton: false }).setHTML(popupContent);
 
         const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
@@ -389,6 +476,17 @@ export default function DispatchPage() {
       setAddCallError("Please select an address from the suggestions list.");
       return;
     }
+
+    let farePriceCents: number | undefined;
+    if (newFare.trim()) {
+      const parsed = parseFareInput(newFare);
+      if (parsed === null) {
+        setAddCallError("Invalid fare price. Enter a valid amount (e.g., 12.50).");
+        return;
+      }
+      farePriceCents = parsed;
+    }
+
     setAddCallError("");
     addCallMutation.mutate({
       customerName: newCustomerName.trim(),
@@ -397,17 +495,18 @@ export default function DispatchPage() {
       notes: newNotes.trim() || undefined,
       lat: selectedAddress.lat,
       lng: selectedAddress.lng,
+      farePriceCents,
     });
   };
 
-  const handleUpdateStatus = (callId: string, status: CallStatus) => {
-    updateStatusMutation.mutate({ callId, status });
+  const handleUpdateStatus = (callId: number, status: CallStatus, farePriceCents?: number) => {
+    updateStatusMutation.mutate({ callId, status, farePriceCents });
     if (selectedCall?.id === callId) {
       setSelectedCall((prev) => (prev ? { ...prev, status } : null));
     }
   };
 
-  const handlePickedUp = (callId: string) => {
+  const handlePickedUp = (callId: number) => {
     handleUpdateStatus(callId, "DONE");
   };
 
@@ -505,6 +604,57 @@ export default function DispatchPage() {
       <div className="flex flex-1 min-h-0 flex-col lg:flex-row">
         {/* Left Panel */}
         <div className="lg:w-80 xl:w-96 border-r-0 lg:border-r-[3px] border-current overflow-y-auto shrink-0 flex flex-col">
+          {/* Unified Filter Bar */}
+          <div className="px-4 py-3 border-b-[3px] border-current space-y-2">
+            <h3 className="text-sm font-black tracking-wide" data-testid="text-filters-heading">FILTERS</h3>
+            <div className="flex gap-2 flex-wrap">
+              {(Object.keys(STATUS_LABELS) as StatusFilter[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  className="px-3 py-1.5 text-xs font-black border-2 border-current transition-colors"
+                  style={{
+                    backgroundColor: statusFilter === s ? "hsl(0, 0%, 7%)" : "transparent",
+                    color: statusFilter === s ? "hsl(50, 100%, 50%)" : "inherit",
+                  }}
+                  data-testid={`button-filter-status-${s.toLowerCase()}`}
+                >
+                  {STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value as DateRange)}
+              className="w-full border-2 border-current bg-transparent px-3 py-1.5 font-bold text-xs outline-none appearance-none cursor-pointer"
+              data-testid="select-date-range"
+            >
+              {(Object.keys(DATE_RANGE_LABELS) as DateRange[]).map((r) => (
+                <option key={r} value={r}>{DATE_RANGE_LABELS[r]}</option>
+              ))}
+            </select>
+
+            {dateRange === "CUSTOM" && (
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="flex-1 border-2 border-current bg-transparent px-2 py-1 text-xs font-bold outline-none"
+                  data-testid="input-custom-start-date"
+                />
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="flex-1 border-2 border-current bg-transparent px-2 py-1 text-xs font-bold outline-none"
+                  data-testid="input-custom-end-date"
+                />
+              </div>
+            )}
+          </div>
+
           {/* Stats Header */}
           <div className="flex items-center gap-4 px-4 py-2 border-b-[3px] border-current flex-wrap">
             <div className="flex items-center gap-2" data-testid="stats-active-calls">
@@ -515,6 +665,9 @@ export default function DispatchPage() {
               <span className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(140,70%,40%)" }} />
               <span className="text-sm font-black">Completed: {completedCalls.length}</span>
             </div>
+            {callsLoading && (
+              <span className="text-xs font-bold opacity-50 ml-auto">Loading...</span>
+            )}
           </div>
 
           {/* Calls */}
@@ -522,7 +675,7 @@ export default function DispatchPage() {
             <h2 className="text-2xl font-black mb-3" data-testid="text-calls-heading">CALLS</h2>
             <div className="space-y-2 max-h-48 lg:max-h-[400px] overflow-y-auto">
               {sortedCalls.length === 0 && (
-                <p className="text-sm opacity-60 font-medium">No calls yet</p>
+                <p className="text-sm opacity-60 font-medium">{callsLoading ? "Loading calls..." : "No calls found"}</p>
               )}
               {sortedCalls.map((call) => {
                 const isCompleted = call.status === "DONE";
@@ -555,18 +708,25 @@ export default function DispatchPage() {
                           />
                           <span className="font-black text-sm" data-testid={`text-call-name-${call.id}`}>{call.customerName}</span>
                         </div>
-                        <span
-                          className={`text-xs font-black px-2 py-0.5 border border-current ${
-                            call.status === "NEW"
-                              ? "bg-white/80"
-                              : call.status === "ASSIGNED"
-                              ? "bg-orange-200"
-                              : "bg-green-300"
-                          }`}
-                          data-testid={`badge-call-status-${call.id}`}
-                        >
-                          {isCompleted ? "COMPLETED" : call.status}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {call.farePriceCents && (
+                            <span className="text-xs font-black px-2 py-0.5 border border-current bg-white/60" data-testid={`text-call-fare-${call.id}`}>
+                              {formatFare(call.farePriceCents)}
+                            </span>
+                          )}
+                          <span
+                            className={`text-xs font-black px-2 py-0.5 border border-current ${
+                              call.status === "NEW"
+                                ? "bg-white/80"
+                                : call.status === "ASSIGNED"
+                                ? "bg-orange-200"
+                                : "bg-green-300"
+                            }`}
+                            data-testid={`badge-call-status-${call.id}`}
+                          >
+                            {isCompleted ? "COMPLETED" : call.status}
+                          </span>
+                        </div>
                       </div>
                       <p className="text-xs font-bold mt-1" data-testid={`text-call-phone-${call.id}`}>{call.customerPhone}</p>
                       <p className="text-xs opacity-70 mt-0.5 truncate" data-testid={`text-call-address-${call.id}`}>{call.address}</p>
@@ -709,6 +869,19 @@ export default function DispatchPage() {
             </div>
             <div className="mb-3" />
 
+            <label className="text-sm font-bold">Fare Price</label>
+            <div className="relative mb-3">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold opacity-60">$</span>
+              <input
+                type="text"
+                value={newFare}
+                onChange={(e) => { setNewFare(e.target.value); setAddCallError(""); }}
+                className="w-full border-2 border-current bg-transparent pl-7 pr-3 py-2 text-sm font-medium outline-none"
+                placeholder="0.00"
+                data-testid="input-fare-price"
+              />
+            </div>
+
             <label className="text-sm font-bold">Notes</label>
             <input
               type="text"
@@ -794,6 +967,15 @@ export default function DispatchPage() {
                 {selectedCall.address}
               </p>
 
+              {selectedCall.farePriceCents && (
+                <>
+                  <p className="font-bold text-sm mb-1">Fare:</p>
+                  <p className="text-base font-black mb-2" data-testid="text-call-detail-fare">
+                    {formatFare(selectedCall.farePriceCents)}
+                  </p>
+                </>
+              )}
+
               {selectedCall.notes && (
                 <>
                   <p className="font-bold text-sm mb-1">Notes:</p>
@@ -810,6 +992,18 @@ export default function DispatchPage() {
                   minute: "2-digit",
                 })}
               </p>
+
+              {selectedCall.completedAt && (
+                <>
+                  <p className="font-bold text-sm mb-1">Completed:</p>
+                  <p className="text-base font-medium mb-4" data-testid="text-call-detail-completed-time">
+                    {new Date(selectedCall.completedAt).toLocaleTimeString([], {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </>
+              )}
 
               <p className="font-bold text-sm mb-2">Status:</p>
               <select

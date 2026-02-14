@@ -10,7 +10,6 @@ export async function registerRoutes(
   const DISPATCH_GROUP_CODE = process.env.DISPATCH_GROUP_CODE || "NYAC-TAXI-01";
   const DISPATCH_PASSCODE = process.env.DISPATCH_PASSCODE || "admin";
   const MAPBOX_TOKEN_PUBLIC = process.env.MAPBOX_TOKEN_PUBLIC || "";
-  const MAPBOX_TOKEN_SECRET = process.env.MAPBOX_TOKEN_SECRET || "";
 
   app.get("/api/mapbox-token", (_req, res) => {
     res.json({ token: MAPBOX_TOKEN_PUBLIC });
@@ -107,10 +106,10 @@ export async function registerRoutes(
   app.post("/api/calls/create", async (req, res) => {
     const result = createCallSchema.safeParse(req.body);
     if (!result.success) {
-      return res.status(400).json({ error: "Invalid request" });
+      return res.status(400).json({ error: "Invalid request", details: result.error.flatten() });
     }
 
-    const { dispatchCode, customerName, customerPhone, address, notes, lat: providedLat, lng: providedLng } = result.data;
+    const { dispatchCode, customerName, customerPhone, address, notes, lat: providedLat, lng: providedLng, farePriceCents } = result.data;
 
     if (dispatchCode !== DISPATCH_GROUP_CODE) {
       return res.status(403).json({ error: "Invalid dispatch code" });
@@ -139,18 +138,24 @@ export async function registerRoutes(
       }
     }
 
-    const call = await storage.createCall({
-      dispatchCode,
-      customerName,
-      customerPhone,
-      address,
-      notes,
-      lat,
-      lng,
-      status: "NEW",
-    });
+    try {
+      const call = await storage.createCall({
+        dispatchCode,
+        customerName,
+        customerPhone,
+        address,
+        notes: notes || null,
+        lat,
+        lng,
+        status: "NEW",
+        farePriceCents: farePriceCents || null,
+      });
 
-    res.json(call);
+      res.json(call);
+    } catch (err) {
+      console.error("Failed to create call:", err);
+      res.status(500).json({ error: "Failed to save call" });
+    }
   });
 
   app.get("/api/calls/list", async (req, res) => {
@@ -158,24 +163,91 @@ export async function registerRoutes(
     if (!dispatchCode) {
       return res.status(400).json({ error: "dispatchCode required" });
     }
-    const calls = await storage.getCallsByDispatchCode(dispatchCode);
-    res.json(calls);
+
+    const status = (req.query.status as string) || "ALL";
+    const range = (req.query.range as string) || "ALL_TIME";
+    const startDateParam = req.query.startDate as string;
+    const endDateParam = req.query.endDate as string;
+
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+
+    const now = new Date();
+
+    switch (range) {
+      case "TODAY": {
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        startDate = today.toISOString();
+        break;
+      }
+      case "LAST_7_DAYS": {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 7);
+        startDate = d.toISOString();
+        break;
+      }
+      case "LAST_30_DAYS": {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 30);
+        startDate = d.toISOString();
+        break;
+      }
+      case "LAST_6_MONTHS": {
+        const d = new Date(now);
+        d.setMonth(d.getMonth() - 6);
+        startDate = d.toISOString();
+        break;
+      }
+      case "LAST_12_MONTHS": {
+        const d = new Date(now);
+        d.setFullYear(d.getFullYear() - 1);
+        startDate = d.toISOString();
+        break;
+      }
+      case "CUSTOM": {
+        if (startDateParam) startDate = startDateParam;
+        if (endDateParam) endDate = endDateParam;
+        break;
+      }
+      case "ALL_TIME":
+      default:
+        break;
+    }
+
+    try {
+      const callsList = await storage.getCalls({
+        dispatchCode,
+        status,
+        startDate,
+        endDate,
+      });
+      res.json(callsList);
+    } catch (err) {
+      console.error("Failed to fetch calls:", err);
+      res.status(500).json({ error: "Failed to fetch calls" });
+    }
   });
 
   app.patch("/api/calls/update-status", async (req, res) => {
     const result = updateCallStatusSchema.safeParse(req.body);
     if (!result.success) {
-      return res.status(400).json({ error: "Invalid request" });
+      return res.status(400).json({ error: "Invalid request", details: result.error.flatten() });
     }
 
-    const { callId, dispatchCode, status } = result.data;
-    const call = await storage.updateCallStatus(callId, dispatchCode, status);
+    const { callId, dispatchCode, status, farePriceCents } = result.data;
 
-    if (!call) {
-      return res.status(404).json({ error: "Call not found" });
+    try {
+      const call = await storage.updateCallStatus(callId, dispatchCode, status, farePriceCents);
+
+      if (!call) {
+        return res.status(404).json({ error: "Call not found" });
+      }
+
+      res.json(call);
+    } catch (err) {
+      console.error("Failed to update call:", err);
+      res.status(500).json({ error: "Failed to update call" });
     }
-
-    res.json(call);
   });
 
   return httpServer;

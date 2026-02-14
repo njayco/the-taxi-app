@@ -1,25 +1,27 @@
-import type { Driver, Call, CallStatus } from "@shared/schema";
-import { randomUUID } from "crypto";
+import type { Driver, Call, CallStatus, InsertCall } from "@shared/schema";
+import { calls } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, gte, lte, desc } from "drizzle-orm";
+
+export interface CallFilters {
+  dispatchCode: string;
+  status?: string;
+  startDate?: string;
+  endDate?: string;
+}
 
 export interface IStorage {
   upsertDriver(driver: Omit<Driver, "id"> & { id: string }): Promise<Driver>;
   getDriversByDispatchCode(dispatchCode: string): Promise<Driver[]>;
-  createCall(call: Omit<Call, "id" | "createdAt">): Promise<Call>;
-  getCallsByDispatchCode(dispatchCode: string): Promise<Call[]>;
-  updateCallStatus(callId: string, dispatchCode: string, status: CallStatus): Promise<Call | undefined>;
+  createCall(data: InsertCall): Promise<Call>;
+  getCalls(filters: CallFilters): Promise<Call[]>;
+  updateCallStatus(callId: number, dispatchCode: string, status: CallStatus, farePriceCents?: number): Promise<Call | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private drivers: Map<string, Driver>;
-  private calls: Map<string, Call>;
+class DriverMemStore {
+  private drivers: Map<string, Driver> = new Map();
 
-  constructor() {
-    this.drivers = new Map();
-    this.calls = new Map();
-  }
-
-  async upsertDriver(driver: Omit<Driver, "id"> & { id: string }): Promise<Driver> {
-    const existing = this.drivers.get(driver.id);
+  upsert(driver: Omit<Driver, "id"> & { id: string }): Driver {
     const updated: Driver = {
       id: driver.id,
       name: driver.name,
@@ -32,36 +34,80 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
-  async getDriversByDispatchCode(dispatchCode: string): Promise<Driver[]> {
+  getByDispatchCode(dispatchCode: string): Driver[] {
     return Array.from(this.drivers.values()).filter(
       (d) => d.dispatchCode === dispatchCode
     );
   }
+}
 
-  async createCall(call: Omit<Call, "id" | "createdAt">): Promise<Call> {
-    const id = randomUUID();
-    const newCall: Call = {
-      ...call,
-      id,
-      createdAt: new Date().toISOString(),
-    };
-    this.calls.set(id, newCall);
-    return newCall;
+const driverStore = new DriverMemStore();
+
+export class DatabaseStorage implements IStorage {
+  async upsertDriver(driver: Omit<Driver, "id"> & { id: string }): Promise<Driver> {
+    return driverStore.upsert(driver);
   }
 
-  async getCallsByDispatchCode(dispatchCode: string): Promise<Call[]> {
-    return Array.from(this.calls.values())
-      .filter((c) => c.dispatchCode === dispatchCode)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  async getDriversByDispatchCode(dispatchCode: string): Promise<Driver[]> {
+    return driverStore.getByDispatchCode(dispatchCode);
   }
 
-  async updateCallStatus(callId: string, dispatchCode: string, status: CallStatus): Promise<Call | undefined> {
-    const call = this.calls.get(callId);
-    if (!call || call.dispatchCode !== dispatchCode) return undefined;
-    call.status = status;
-    this.calls.set(callId, call);
+  async createCall(data: InsertCall): Promise<Call> {
+    const [call] = await db.insert(calls).values(data).returning();
     return call;
+  }
+
+  async getCalls(filters: CallFilters): Promise<Call[]> {
+    const conditions = [eq(calls.dispatchCode, filters.dispatchCode)];
+
+    if (filters.status && filters.status !== "ALL") {
+      if (filters.status === "NEW") {
+        conditions.push(eq(calls.status, "NEW"));
+      } else if (filters.status === "COMPLETED") {
+        conditions.push(eq(calls.status, "DONE"));
+      } else {
+        conditions.push(eq(calls.status, filters.status));
+      }
+    }
+
+    if (filters.startDate) {
+      conditions.push(gte(calls.createdAt, new Date(filters.startDate)));
+    }
+    if (filters.endDate) {
+      const end = new Date(filters.endDate);
+      end.setHours(23, 59, 59, 999);
+      conditions.push(lte(calls.createdAt, end));
+    }
+
+    return db
+      .select()
+      .from(calls)
+      .where(and(...conditions))
+      .orderBy(desc(calls.createdAt));
+  }
+
+  async updateCallStatus(callId: number, dispatchCode: string, status: CallStatus, farePriceCents?: number): Promise<Call | undefined> {
+    const updateData: Record<string, any> = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    if (status === "DONE") {
+      updateData.completedAt = new Date();
+    }
+
+    if (farePriceCents !== undefined) {
+      updateData.farePriceCents = farePriceCents;
+    }
+
+    const [updated] = await db
+      .update(calls)
+      .set(updateData)
+      .where(and(eq(calls.id, callId), eq(calls.dispatchCode, dispatchCode)))
+      .returning();
+
+    return updated || undefined;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

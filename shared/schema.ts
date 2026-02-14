@@ -1,4 +1,31 @@
 import { z } from "zod";
+import { pgTable, text, integer, real, timestamp, serial } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+
+export const calls = pgTable("calls", {
+  id: serial("id").primaryKey(),
+  dispatchCode: text("dispatch_code").notNull(),
+  customerName: text("customer_name").notNull(),
+  customerPhone: text("customer_phone").notNull(),
+  address: text("address").notNull(),
+  notes: text("notes"),
+  lat: real("lat").notNull(),
+  lng: real("lng").notNull(),
+  status: text("status").notNull().default("NEW"),
+  farePriceCents: integer("fare_price_cents"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const insertCallSchema = createInsertSchema(calls).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertCall = z.infer<typeof insertCallSchema>;
+export type Call = typeof calls.$inferSelect;
 
 export const driverSchema = z.object({
   id: z.string(),
@@ -20,19 +47,6 @@ export const driverUpdateSchema = z.object({
 
 export const callStatusEnum = z.enum(["NEW", "ASSIGNED", "DONE"]);
 
-export const callSchema = z.object({
-  id: z.string(),
-  dispatchCode: z.string(),
-  customerName: z.string(),
-  customerPhone: z.string(),
-  address: z.string(),
-  notes: z.string().optional(),
-  lat: z.number(),
-  lng: z.number(),
-  status: callStatusEnum,
-  createdAt: z.string(),
-});
-
 export const createCallSchema = z.object({
   dispatchCode: z.string(),
   customerName: z.string().min(1, "Customer name is required"),
@@ -41,12 +55,14 @@ export const createCallSchema = z.object({
   notes: z.string().optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
+  farePriceCents: z.number().int().min(0).optional(),
 });
 
 export const updateCallStatusSchema = z.object({
-  callId: z.string(),
+  callId: z.number(),
   dispatchCode: z.string(),
   status: callStatusEnum,
+  farePriceCents: z.number().int().min(0).optional(),
 });
 
 export const validateDispatchCodeSchema = z.object({
@@ -60,7 +76,6 @@ export const dispatchLoginSchema = z.object({
 
 export type Driver = z.infer<typeof driverSchema>;
 export type DriverUpdate = z.infer<typeof driverUpdateSchema>;
-export type Call = z.infer<typeof callSchema>;
 export type CallStatus = z.infer<typeof callStatusEnum>;
 export type CreateCall = z.infer<typeof createCallSchema>;
 export type UpdateCallStatus = z.infer<typeof updateCallStatusSchema>;
