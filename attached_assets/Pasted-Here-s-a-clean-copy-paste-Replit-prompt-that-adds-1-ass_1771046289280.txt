@@ -1,0 +1,105 @@
+Here’s a clean copy/paste Replit prompt that adds (1) assign call → driver, and (2) driver details panel with trips + revenue that respects the same filters (Today / last 7 / all time, etc.). It’s written to fit your current dashboard style and API approach.
+
+You are working inside my existing Taxi Dispatch web app (Next.js + TypeScript + Mapbox GL).
+
+GOAL
+Add “Call Assignment” + “Driver Details” features to the Dispatch Dashboard while keeping all existing filters (status + date range) working. This must work without breaking the live map pins, calls list, or driver live tracking.
+
+FEATURE 1 — Assign a Call to a Live Driver
+When a dispatcher clicks a call in the Calls list (Call Details panel), add an “Assign Driver” section:
+
+UI Requirements:
+- In Call Details, show:
+  - Assigned Driver (if any) as a pill: “Assigned: Cab #6 (DriverName)”
+  - A dropdown/select listing only LIVE drivers (drivers list from Drivers Live)
+  - An “Assign” button
+  - A “Unassign” button (optional but preferred)
+- When assigned:
+  - Update the call row to show the assigned cab number next to the call (e.g., “→ Cab #6”)
+  - Update the call marker tooltip/popup to show “Assigned: Cab #6”
+  - Do NOT move the marker or cause any marker re-render jumps.
+
+Data Requirements:
+- Calls must have fields:
+  - assignedDriverId: string | null
+  - assignedAt: ISO string | null
+- Drivers must have:
+  - id: string
+  - displayName (e.g., “Cab #6”)
+  - lastSeen / lastLocation, etc.
+
+API Requirements:
+- Add/extend endpoints:
+  - PATCH /api/calls/:id/assign  body: { driverId: string | null }
+    - If driverId is provided, assign call
+    - If null, unassign call
+    - Return updated call
+- Ensure assignment persists (DB preferred). If app is currently in-memory, use a persistent DB:
+  - Use SQLite (or Postgres if already set up) via Prisma
+  - Add migrations for Calls and Drivers tables if not present
+
+Server Logic:
+- Only allow assigning to drivers that are currently live (lastSeen within 60 seconds) OR still allow but show warning if stale.
+- Prevent assigning the same call to multiple drivers (one-to-one).
+- A driver can have multiple assigned calls.
+
+FEATURE 2 — Driver Details Panel + Performance Stats
+When a dispatcher clicks a driver in the “Drivers Live” list OR clicks their marker, open a Driver Details panel.
+
+UI Requirements:
+- Driver Details shows:
+  - Driver Name (Cab #)
+  - Status: LIVE / OFFLINE (based on lastSeen)
+  - Trips Assigned: count of calls assigned to this driver in the currently selected filters
+  - Revenue Generated: sum of fares for calls assigned to this driver within the same filters
+- It must update when filters change:
+  - range: TODAY, LAST_7_DAYS, LAST_30_DAYS, LAST_6_MONTHS, LAST_12_MONTHS, ALL_TIME
+  - status: ALL, NEW, COMPLETED
+- If status=NEW: revenue is sum of fares for NEW calls assigned to the driver in range
+- If status=COMPLETED: revenue is sum of fares for COMPLETED/PICKED_UP calls assigned to driver in range
+- If status=ALL: revenue is sum of fares for NEW + COMPLETED calls in range
+
+Dashboard Integration:
+- In the Drivers Live list, show a small badge for each driver:
+  - “Assigned: X” (number of assigned calls in current filters) OR “Assigned Today: X” depending on filter range
+- Clicking a driver highlights their marker on the map and centers map to them without moving call pins.
+
+API Requirements:
+- Add endpoint:
+  - GET /api/drivers/:id/stats?range=TODAY&status=ALL
+    returns:
+    {
+      driver: { id, displayName, lastSeen, ... },
+      stats: {
+        tripsAssigned: number,
+        revenue: number
+      }
+    }
+- Or return driver stats in the existing /api/drivers endpoint to reduce requests:
+  - GET /api/drivers?range=TODAY&status=ALL
+    returns drivers + computed stats per driver
+
+IMPORTANT ENGINEERING CONSTRAINTS
+- Keep Mapbox map initialized once; do NOT recreate map or markers on state changes.
+- Markers must be managed with refs (Map keyed by call.id for call pins; Map keyed by driver.id for driver markers).
+- Assignment updates should only update marker popup text and call list UI; never recreate markers.
+- Add an isValidLngLat guard to prevent pin jumps.
+- Use optimistic UI updates (update call assignment in state immediately, then confirm with API; rollback on error).
+
+DELIVERABLES
+1) Prisma schema + migrations (if DB not already used) for Calls and Drivers including assignedDriverId + assignedAt
+2) API routes:
+   - PATCH /api/calls/:id/assign
+   - GET /api/drivers/:id/stats (or drivers endpoint includes stats)
+3) Frontend:
+   - Call Details panel “Assign Driver” UI
+   - Drivers list clickable + Driver Details panel
+   - Driver marker click opens Driver Details
+   - Driver stats reflect current filters and update on filter change
+4) Minimal comments explaining how filters apply to driver stats and why marker refs prevent jumping
+
+Quick note on “revenue generated”
+
+Right now your fare is manually entered when creating the call. So “driver revenue” will be sum of fares for calls assigned to that driver within the selected filters. If you later add “actual fare at completion,” you can switch the revenue calculation to use finalFare instead of fare.
+
+If you want, paste your current data model for calls/drivers (even just the JSON shape you’re storing) and I’ll rewrite the schema fields + API routes to match your exact codebase naming so Replit nails it on the first try.

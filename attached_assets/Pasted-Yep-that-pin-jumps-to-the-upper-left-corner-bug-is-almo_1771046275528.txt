@@ -1,0 +1,279 @@
+Yep — that “pin jumps to the upper-left corner” bug is almost always one of these:
+	1.	Marker is being recreated on re-render (React state change causes a new Marker without coordinates yet)
+	2.	Coordinates temporarily become undefined/null during an update → Mapbox treats it like (0,0) (which appears upper-left-ish depending on your view)
+	3.	Map container/layout shifts (sidebar height changes, fonts load, etc.) and Mapbox needs a map.resize()
+	4.	Marker CSS positioning gets clobbered (less common, but happens if a global CSS hits .mapboxgl-marker)
+
+Below is the fix pattern that reliably stops the jumping: create the Map once, keep Markers in refs, and only update marker position when coords are valid.
+
+⸻
+
+Fix: stop the pin from jumping
+
+Core rules
+	•	Initialize map one time (useEffect(() => {...}, []))
+	•	Keep a markersByCallId ref and update markers, don’t recreate them
+	•	Guard against invalid coords (Number.isFinite(lat/lng))
+	•	When the left panel expands/collapses (or list changes), call map.resize()
+
+Drop-in pattern (Mapbox GL + React)
+
+// utils/coords.ts
+export function isValidLngLat(lng: any, lat: any) {
+  const L = Number(lng);
+  const A = Number(lat);
+  return Number.isFinite(L) && Number.isFinite(A) && Math.abs(L) <= 180 && Math.abs(A) <= 90;
+}
+
+// in your DispatchMap component
+import mapboxgl from "mapbox-gl";
+import { useEffect, useMemo, useRef } from "react";
+import { isValidLngLat } from "@/utils/coords";
+
+type CallPin = { id: string; lng: number; lat: number; status: "NEW" | "COMPLETED" | "PICKED_UP"; fare?: number };
+
+export function DispatchMap({ calls }: { calls: CallPin[] }) {
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Markers stored by call id so we UPDATE instead of recreate
+  const callMarkersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+
+  // 1) Create map ONCE
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    mapRef.current = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/streets-v12",
+      center: [-73.616, 40.706], // Hempstead-ish
+      zoom: 12,
+    });
+
+    return () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+      callMarkersRef.current.clear();
+    };
+  }, []);
+
+  // 2) When calls change, update markers safely
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const existing = callMarkersRef.current;
+
+    // Add/update
+    for (const c of calls) {
+      if (!isValidLngLat(c.lng, c.lat)) continue; // prevents (0,0) jumps
+
+      const key = c.id;
+      const m = existing.get(key);
+
+      if (!m) {
+        const el = document.createElement("div");
+        el.className = "call-marker";
+        // optional: status-based styling via class
+        el.dataset.status = c.status;
+
+        const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+          .setLngLat([c.lng, c.lat])
+          .addTo(map);
+
+        existing.set(key, marker);
+      } else {
+        // only setLngLat when valid
+        m.setLngLat([c.lng, c.lat]);
+        const el = m.getElement();
+        el.dataset.status = c.status;
+      }
+    }
+
+    // Remove markers for calls that no longer exist
+    const ids = new Set(calls.map(c => c.id));
+    for (const [id, marker] of existing.entries()) {
+      if (!ids.has(id)) {
+        marker.remove();
+        existing.delete(id);
+      }
+    }
+  }, [calls]);
+
+  // 3) Resize map if layout changes (sidebar/filter toggles)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    // run next tick so DOM has settled
+    const t = window.setTimeout(() => map.resize(), 0);
+    return () => window.clearTimeout(t);
+  }, [calls.length]); // you can also depend on sidebarOpen, filters, etc.
+
+  return <div ref={mapContainerRef} className="h-full w-full" />;
+}
+
+Add CSS to prevent “global CSS” issues
+
+/* Make sure nothing overrides marker positioning */
+.mapboxgl-marker {
+  will-change: transform;
+}
+
+.call-marker {
+  width: 16px;
+  height: 16px;
+  border-radius: 9999px;
+  border: 2px solid #000;
+  background: #ffd400; /* taxi yellow */
+}
+
+/* optional status styling */
+.call-marker[data-status="COMPLETED"] { background: #2ecc71; }
+.call-marker[data-status="NEW"] { background: #ffd400; }
+.call-marker[data-status="PICKED_UP"] { background: #00c2ff; }
+
+✅ This combo fixes 99% of “jumping” because you’re no longer letting React recreate markers or set (undefined, undefined).
+
+⸻
+
+Feature: Total Revenue (based on filters)
+
+You already have:
+	•	Filters: Today / 7 days / 30 days / 6 mo / 12 mo / all time
+	•	Status filter: All / New / Completed
+	•	Fare field (manual)
+
+Revenue rules you asked for
+	•	Show Total Revenue in the left panel
+	•	It must respect the selected time range
+	•	It must respect status:
+	•	If All selected → sum fares across New + Completed (and any “Picked up” you treat as completed)
+	•	If New selected → sum fares of New calls
+	•	If Completed selected → sum fares of Completed calls
+	•	Show it for “today / last 7 / last 30…” etc.
+
+Backend: return revenue summary alongside calls
+
+If your API endpoint is something like /api/calls?range=TODAY&status=ALL, make it return:
+
+{
+  calls: Call[],
+  revenue: {
+    total: number,
+    byStatus: { NEW: number, COMPLETED: number }
+  }
+}
+
+Example (Node/Next.js route)
+
+// /app/api/calls/route.ts
+import { NextResponse } from "next/server";
+
+function startOfDay(d: Date) {
+  const x = new Date(d);
+  x.setHours(0,0,0,0);
+  return x;
+}
+
+function rangeToStart(range: string) {
+  const now = new Date();
+  const end = now;
+  let start = new Date(0);
+
+  if (range === "TODAY") start = startOfDay(now);
+  else if (range === "LAST_7_DAYS") start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  else if (range === "LAST_30_DAYS") start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  else if (range === "LAST_6_MONTHS") start = new Date(now.getTime() - 183 * 24 * 60 * 60 * 1000);
+  else if (range === "LAST_12_MONTHS") start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  else if (range === "ALL_TIME") start = new Date(0);
+
+  return { start, end };
+}
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const status = (searchParams.get("status") ?? "ALL").toUpperCase();
+  const range = (searchParams.get("range") ?? "TODAY").toUpperCase();
+
+  const { start, end } = rangeToStart(range);
+
+  // TODO: replace with your real DB fetch
+  const allCalls = globalThis.callsStore ?? []; // example
+  const callsInRange = allCalls.filter((c: any) => {
+    const created = new Date(c.createdAt);
+    return created >= start && created <= end;
+  });
+
+  const callsFiltered =
+    status === "ALL" ? callsInRange : callsInRange.filter((c: any) => c.status === status);
+
+  const sumFare = (rows: any[]) =>
+    rows.reduce((acc, c) => acc + (Number(c.fare) || 0), 0);
+
+  const revenueByStatus = {
+    NEW: sumFare(callsInRange.filter((c: any) => c.status === "NEW")),
+    COMPLETED: sumFare(callsInRange.filter((c: any) => c.status === "COMPLETED" || c.status === "PICKED_UP")),
+  };
+
+  const revenueTotal =
+    status === "NEW" ? revenueByStatus.NEW :
+    status === "COMPLETED" ? revenueByStatus.COMPLETED :
+    revenueByStatus.NEW + revenueByStatus.COMPLETED;
+
+  return NextResponse.json({
+    calls: callsFiltered,
+    revenue: { total: revenueTotal, byStatus: revenueByStatus }
+  });
+}
+
+Frontend: show Total Revenue in the sidebar
+
+Where you render Active/Completed counts, add:
+
+<div className="flex items-center justify-between border-t border-black pt-2 mt-2">
+  <div className="font-black text-lg">TOTAL REVENUE</div>
+  <div className="font-black text-lg">${revenue.total.toFixed(2)}</div>
+</div>
+
+…and make sure your fetch stores revenue in state.
+
+⸻
+
+Copy/paste Replit prompt (to implement both fixes)
+
+Paste this into Replit “Agent / Build”:
+
+You are working inside my existing Taxi Dispatch web app (Next.js + Mapbox GL).
+
+Bug Fix (High Priority): When a dispatcher creates a new call pin, the Mapbox marker sometimes jumps to the upper-left corner of the map. Fix this so call markers never jump and always stay at their correct coordinates.
+
+Implementation requirements:
+	1.	Initialize the Mapbox map exactly once using useEffect(() => ..., []) and store it in mapRef.
+	2.	Store call markers in a useRef(new Map()) keyed by call.id.
+	3.	When calls update, update existing markers via marker.setLngLat([lng, lat]) instead of recreating them.
+	4.	Add a coordinate guard helper isValidLngLat(lng, lat) using Number.isFinite and range checks; never call setLngLat if invalid. This prevents accidental (0,0) jumps.
+	5.	Remove markers when calls are removed.
+	6.	Call map.resize() after UI/layout changes that affect map size (e.g., filters/call list changes).
+	7.	Ensure no global CSS overrides .mapboxgl-marker positioning; add safe marker CSS if needed.
+
+New Feature: Revenue Summary (Filters-aware):
+Add a “TOTAL REVENUE” display in the left sidebar that recalculates based on current filters: range (TODAY, LAST_7_DAYS, LAST_30_DAYS, LAST_6_MONTHS, LAST_12_MONTHS, ALL_TIME) and status (ALL, NEW, COMPLETED).
+	•	Each call already has a manually-entered fare field (number).
+	•	If status=ALL, total revenue = sum of fares for NEW + COMPLETED calls in range (treat PICKED_UP as completed if it exists).
+	•	If status=NEW, sum only NEW calls in range.
+	•	If status=COMPLETED, sum only completed calls in range.
+
+Backend/API changes:
+	•	Update the calls API endpoint to return { calls, revenue: { total, byStatus: { NEW, COMPLETED } } } and ensure it respects the same range + status query parameters used by the dashboard.
+	•	Implement date-range filtering using createdAt timestamps.
+
+Frontend changes:
+	•	Store revenue in state from the API response.
+	•	Render “TOTAL REVENUE $X.XX” in the left sidebar near the Active/Completed counts.
+	•	Confirm the value updates instantly when filters change.
+
+Deliverables: update the relevant map component, API route, and sidebar UI, and include brief comments explaining why the marker jump happened and how the ref-based marker management prevents it.
+
+⸻
+
+If you want, paste your map component file (or tell me the filename) and I’ll tailor the exact edits to your current structure (Map component + calls fetch + filters state) so you can drop it in with minimal merge pain.
