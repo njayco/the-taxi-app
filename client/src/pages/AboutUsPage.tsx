@@ -890,12 +890,12 @@ export default function AboutUsPage() {
               data-testid="card-pricing-starter"
             >
               <h3 className="text-2xl font-black mb-2">STARTER</h3>
-              <p className="text-4xl md:text-5xl font-black mb-1">$49</p>
-              <p className="text-sm font-black mb-6">/month</p>
+              <p className="text-4xl md:text-5xl font-black mb-1">$99</p>
+              <p className="text-sm font-black mb-6">/month/driver</p>
               <ul className="space-y-2 text-sm mb-8">
                 <li className="flex items-center gap-2">
                   <CheckSquare className="w-4 h-4 flex-shrink-0" />
-                  Up to 10 drivers
+                  Up to 25 drivers
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckSquare className="w-4 h-4 flex-shrink-0" />
@@ -931,12 +931,12 @@ export default function AboutUsPage() {
               <h3 className="text-2xl font-black mb-2" style={{ color: YELLOW }}>
                 PROFESSIONAL
               </h3>
-              <p className="text-4xl md:text-5xl font-black mb-1">$99</p>
-              <p className="text-sm font-black mb-6">/month</p>
+              <p className="text-4xl md:text-5xl font-black mb-1">$69</p>
+              <p className="text-sm font-black mb-6">/month/driver</p>
               <ul className="space-y-2 text-sm mb-8">
                 <li className="flex items-center gap-2">
                   <CheckSquare className="w-4 h-4 flex-shrink-0" style={{ color: YELLOW }} />
-                  Unlimited drivers
+                  25+ drivers (volume savings)
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckSquare className="w-4 h-4 flex-shrink-0" style={{ color: YELLOW }} />
