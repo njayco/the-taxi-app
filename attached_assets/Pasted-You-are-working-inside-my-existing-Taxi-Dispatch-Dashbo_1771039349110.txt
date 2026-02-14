@@ -1,0 +1,146 @@
+You are working inside my existing Taxi Dispatch Dashboard web app.
+
+The app currently allows dispatchers to:
+- Add a call
+- Enter an address
+- Drop a pin on the live map
+- View calls in a call list section
+
+We are upgrading the system to make it a real dispatch tool.
+
+---------------------------------------
+GOALS
+---------------------------------------
+
+1) Add Customer Name field
+2) Add Customer Phone Number field
+3) Display Name + Phone inside the Call List
+4) Add a "Picked Up" button for each call
+5) When clicked:
+   - Mark the call as completed
+   - Change the call icon color to GREEN
+   - Optionally change the map marker color to green
+   - Disable the button
+   - Add a small "Completed" label
+
+---------------------------------------
+FORM CHANGES (ADD CALL MODAL)
+---------------------------------------
+
+In the "Add Call" form, add:
+
+Field 1:
+Label: Customer Name
+Type: text
+Required: true
+
+Field 2:
+Label: Phone Number
+Type: tel
+Validation:
+- Must allow numbers, dashes, parentheses
+- Show validation error if empty
+- Format to (XXX) XXX-XXXX on blur (optional but preferred)
+
+Store these fields in state along with:
+- address
+- lat
+- lng
+- callId
+- status (new field)
+
+---------------------------------------
+CALL OBJECT STRUCTURE
+---------------------------------------
+
+Each call should now look like:
+
+{
+  id: string,
+  name: string,
+  phone: string,
+  address: string,
+  lat: number,
+  lng: number,
+  status: "active" | "completed"
+}
+
+Default status = "active"
+
+---------------------------------------
+CALL LIST UI UPDATE
+---------------------------------------
+
+In the Call Section / Sidebar:
+
+Each call card should display:
+
+[Icon] Customer Name (bold)
+Phone number
+Address
+Status badge
+
+Add a button:
+Label: "Picked Up"
+
+---------------------------------------
+PICKED UP BUTTON LOGIC
+---------------------------------------
+
+When "Picked Up" is clicked:
+
+1. Update call.status = "completed"
+2. Re-render the UI
+3. Change the call icon color from default to GREEN
+4. Change marker color on map to GREEN (if supported)
+5. Replace button with:
+   - Disabled button OR
+   - Green "Completed" badge
+
+---------------------------------------
+MAP INTEGRATION
+---------------------------------------
+
+If using Google Maps or Mapbox:
+
+When status changes:
+- Update marker color/icon
+- Keep marker visible
+- Optionally add a checkmark icon
+
+---------------------------------------
+UI/UX DETAILS
+---------------------------------------
+
+- Active calls: normal color (blue/red)
+- Completed calls: green highlight background
+- Smooth transition animation when status changes
+- Sort active calls first, completed calls at bottom
+
+---------------------------------------
+BONUS (Optional but Recommended)
+---------------------------------------
+
+Add a small stats header:
+Active Calls: X
+Completed Calls: Y
+
+---------------------------------------
+ACCEPTANCE TESTS
+---------------------------------------
+
+- Adding a call requires name + phone
+- Call appears in list with correct info
+- Clicking “Picked Up” turns icon green
+- Call status updates to completed
+- Button disables
+- Map marker updates
+- Page reload preserves status (if using local storage or database)
+
+---------------------------------------
+DELIVER CLEAN, MODULAR CODE
+---------------------------------------
+
+- Separate components if using React
+- Do not break existing map logic
+- Keep styling consistent with current dashboard
