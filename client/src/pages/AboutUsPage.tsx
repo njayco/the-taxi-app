@@ -16,30 +16,27 @@ import {
 } from "lucide-react";
 
 import heroImg from "@assets/4ACnycvj_1771051965567.png";
-import callWorkflowImg from "@assets/8chqOvTt_1771051965567.png";
 import whoWeAreImg from "@assets/ahE4xJgt_1771051965567.png";
-import pricingImg from "@assets/BdU3jBsq_1771051965567.png";
-import twoModesImg from "@assets/cKRs47aY_1771051965567.png";
-import testimonialsImg from "@assets/fgWHmhEn_1771051965567.png";
-import mobileHeroImg from "@assets/gbzF1qeh_1771051965567.png";
-import featuresGridImg from "@assets/KJd2C8KX_1771051965567.png";
-import driverModeImg from "@assets/rkPWp6TO_1771051965567.png";
-import dispatchModeImg from "@assets/ZMyAnbyB_1771051965567.png";
 import mapFilteringImg from "@assets/JYSc8ohr_1771051965567.png";
-import techStackImg from "@assets/i5s0HwDz_1771051965567.png";
-import cooperativeImg from "@assets/zMkSVlLZ_1771051965567.png";
-import cooperativeYellowImg from "@assets/yyBUKLte_1771051965567.png";
-import ctaImg from "@assets/wzOf4mLm_1771051965567.png";
 
 const YELLOW = "#FFDD00";
 const BLACK = "#1a1a1a";
+
+const WORKFLOW_STEPS = [
+  { title: "CUSTOMER INFO", desc: "Name, phone, address" },
+  { title: "PIN PREVIEW", desc: "Map preview of location" },
+  { title: "DROP PIN", desc: "Confirm pickup point" },
+  { title: "ASSIGN DRIVER", desc: "Select from dropdown" },
+  { title: "PICKED UP", desc: "Mark complete" },
+  { title: "REVENUE LOGGED", desc: "Fare tracked" },
+];
 
 export default function AboutUsPage() {
   return (
     <div className="min-h-screen" style={{ fontFamily: "Inter, sans-serif" }}>
       <CompanyNav />
 
-      {/* HERO SECTION */}
+      {/* HERO */}
       <section
         id="hero"
         className="py-16 md:py-24"
@@ -61,21 +58,21 @@ export default function AboutUsPage() {
               Hybrid Dispatch. Real-Time Control.
             </p>
             <p
-              className="text-base md:text-lg max-w-2xl mb-12"
+              className="text-base md:text-lg max-w-xl mb-12 opacity-80"
               data-testid="text-hero-description"
             >
-              A live taxi dispatch platform built for dispatchers and drivers to
-              operate smarter, faster, and more efficiently.
+              Live coordination between dispatchers and drivers — built for
+              cooperatives that move fast.
             </p>
             <div className="w-full max-w-4xl border-4 border-black">
               <img
                 src={heroImg}
-                alt="Denoko Taxi Dashboard Wireframe"
+                alt="Denoko Taxi Dashboard"
                 className="w-full"
                 data-testid="img-hero-dashboard"
               />
             </div>
-            <div className="flex justify-between w-full max-w-4xl mt-8">
+            <div className="flex justify-between gap-4 w-full max-w-4xl mt-8">
               <a
                 href="#who-we-are"
                 className="font-black text-sm tracking-tight hover:underline"
@@ -95,7 +92,10 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      {/* WHO WE ARE SECTION */}
+      {/* DIVIDER */}
+      <div className="h-1" style={{ backgroundColor: BLACK }} />
+
+      {/* WHO WE ARE */}
       <section
         id="who-we-are"
         className="py-16 md:py-24"
@@ -116,35 +116,28 @@ export default function AboutUsPage() {
                 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-none mb-6"
                 data-testid="text-who-we-are-title"
               >
-                DENOKO TAXI DISPATCH
+                DISPATCH BUILT
+                <br />
+                FOR THE REAL WORLD
               </h2>
               <p className="text-base md:text-lg mb-6">
-                Denoko Taxi Dispatch is a hybrid taxi dispatch system built for
-                real-world taxi companies that rely on live coordination between
-                dispatchers and drivers.
+                A hybrid taxi dispatch system for companies that rely on live
+                coordination — not guesswork.
               </p>
-              <p className="font-black text-sm mb-3">We empower:</p>
               <ul className="space-y-2 mb-6 text-base">
                 <li className="flex items-start gap-2">
                   <CheckSquare className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <span>Dispatchers with real-time visibility</span>
+                  <span>Dispatchers get full visibility</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckSquare className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <span>Drivers with simple GPS sharing tools</span>
+                  <span>Drivers get simple GPS tools</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckSquare className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <span>
-                    Taxi companies with structured, organized call management
-                  </span>
+                  <span>Companies get organized call management</span>
                 </li>
               </ul>
-              <p className="text-base">
-                Denoko Taxi is built under the Denoko Cooperative — a
-                mission-driven organization focused on economic empowerment,
-                ownership, and operational excellence.
-              </p>
             </div>
             <div className="border-4 border-black">
               <img
@@ -158,7 +151,7 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      {/* TWO MODES SECTION */}
+      {/* TWO MODES */}
       <section
         id="platform"
         className="py-16 md:py-24"
@@ -186,10 +179,7 @@ export default function AboutUsPage() {
             <div>
               <div
                 className="border-4 p-6 md:p-8"
-                style={{
-                  backgroundColor: YELLOW,
-                  borderColor: BLACK,
-                }}
+                style={{ backgroundColor: YELLOW, borderColor: BLACK }}
                 data-testid="card-driver-mode"
               >
                 <h3 className="text-3xl md:text-4xl font-black mb-6">
@@ -230,7 +220,7 @@ export default function AboutUsPage() {
                   FOR DRIVERS
                 </h4>
                 <p className="text-sm">
-                  Simple GPS sharing. No complex apps. Start sharing in seconds.
+                  Open. Enter code. Start sharing. That's it.
                 </p>
               </div>
             </div>
@@ -238,10 +228,7 @@ export default function AboutUsPage() {
             <div>
               <div
                 className="border-4 p-6 md:p-8"
-                style={{
-                  backgroundColor: YELLOW,
-                  borderColor: BLACK,
-                }}
+                style={{ backgroundColor: YELLOW, borderColor: BLACK }}
                 data-testid="card-dispatch-mode"
               >
                 <h3 className="text-3xl md:text-4xl font-black mb-6">
@@ -295,13 +282,16 @@ export default function AboutUsPage() {
                   FOR DISPATCHERS
                 </h4>
                 <p className="text-sm">
-                  Real-time map. Organized calls. Complete visibility.
+                  Live map. Organized calls. Complete control.
                 </p>
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* DIVIDER */}
+      <div className="h-1" style={{ backgroundColor: YELLOW }} />
 
       {/* HOW IT WORKS — DRIVER MODE */}
       <section
@@ -311,33 +301,41 @@ export default function AboutUsPage() {
         data-testid="section-driver-mode"
       >
         <div className="max-w-6xl mx-auto px-6">
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-center mb-12"
-            data-testid="text-driver-mode-title"
-          >
-            HOW IT WORKS — DRIVER MODE
-          </h2>
+          <div className="text-center mb-12">
+            <span
+              className="inline-block px-4 py-1 text-xs font-black tracking-wider mb-4"
+              style={{ backgroundColor: BLACK, color: "#fff" }}
+            >
+              HOW IT WORKS
+            </span>
+            <h2
+              className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight"
+              data-testid="text-driver-mode-title"
+            >
+              DRIVER MODE
+            </h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
               {
                 num: "01",
                 title: "ENTER DISPATCH CODE",
-                desc: "Drivers enter their name and dispatch group code. Simple onboarding, no friction.",
+                desc: "Name + group code. No friction.",
               },
               {
                 num: "02",
                 title: "START SHARING",
-                desc: "Tap 'Start Sharing'. GPS location updates every 5 seconds.",
+                desc: "One tap. GPS updates every 5 seconds.",
               },
               {
                 num: "03",
-                title: "APPEAR LIVE",
-                desc: "Driver appears live on dispatcher's map. Status shows LIVE if updated within 15 seconds.",
+                title: "APPEAR ON MAP",
+                desc: "Dispatcher sees you live. Status updates automatically.",
               },
               {
                 num: "04",
                 title: "COMPLETE TRIPS",
-                desc: "Receive assigned trips. Complete trips. Generate detailed trip reports for easy invoicing and analysis.",
+                desc: "Receive assignments. Mark complete. Revenue tracked.",
               },
             ].map((card) => (
               <div
@@ -365,12 +363,20 @@ export default function AboutUsPage() {
         data-testid="section-dispatch-mode"
       >
         <div className="max-w-6xl mx-auto px-6">
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-center mb-12"
-            data-testid="text-dispatch-mode-title"
-          >
-            HOW IT WORKS — DISPATCH MODE
-          </h2>
+          <div className="text-center mb-12">
+            <span
+              className="inline-block px-4 py-1 text-xs font-black tracking-wider mb-4"
+              style={{ backgroundColor: BLACK, color: "#fff" }}
+            >
+              HOW IT WORKS
+            </span>
+            <h2
+              className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight"
+              data-testid="text-dispatch-mode-title"
+            >
+              DISPATCH MODE
+            </h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
             <div className="grid grid-cols-2 gap-4">
               {[
@@ -383,19 +389,19 @@ export default function AboutUsPage() {
                 {
                   num: "02",
                   title: "LIVE MAP",
-                  desc: "All active drivers in real time",
+                  desc: "All drivers, real time",
                   dark: false,
                 },
                 {
                   num: "03",
                   title: "CREATE CALLS",
-                  desc: "Customer name, phone, address autocomplete, fare price",
+                  desc: "Name, phone, address, fare",
                   dark: false,
                 },
                 {
                   num: "04",
                   title: "ASSIGN DRIVERS",
-                  desc: "Via dropdown selection",
+                  desc: "Dropdown selection",
                   dark: true,
                 },
                 {
@@ -406,8 +412,8 @@ export default function AboutUsPage() {
                 },
                 {
                   num: "06",
-                  title: "TRACK PERFORMANCE",
-                  desc: "Active calls, completed, revenue, driver stats",
+                  title: "TRACK STATS",
+                  desc: "Calls, revenue, driver performance",
                   dark: true,
                 },
               ].map((card) => (
@@ -434,7 +440,7 @@ export default function AboutUsPage() {
             <div className="border-4 border-black">
               <img
                 src={heroImg}
-                alt="Dispatch Dashboard Wireframe"
+                alt="Dispatch Dashboard"
                 className="w-full"
                 data-testid="img-dispatch-dashboard"
               />
@@ -443,7 +449,10 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      {/* FEATURES SECTION */}
+      {/* DIVIDER */}
+      <div className="h-1" style={{ backgroundColor: BLACK }} />
+
+      {/* FEATURES */}
       <section
         id="features"
         className="py-16 md:py-24"
@@ -451,49 +460,57 @@ export default function AboutUsPage() {
         data-testid="section-features"
       >
         <div className="max-w-6xl mx-auto px-6">
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-center mb-12"
-            data-testid="text-features-title"
-          >
-            POWERFUL FEATURES
-          </h2>
+          <div className="text-center mb-12">
+            <span
+              className="inline-block px-4 py-1 text-xs font-black tracking-wider mb-4"
+              style={{ backgroundColor: BLACK, color: "#fff" }}
+            >
+              CAPABILITIES
+            </span>
+            <h2
+              className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight"
+              data-testid="text-features-title"
+            >
+              POWERFUL FEATURES
+            </h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
                 num: "01",
                 icon: MapPin,
                 title: "LIVE GPS TRACKING",
-                desc: "Drivers appear on map in real-time. 5-second updates.",
+                desc: "5-second GPS updates. Always know where your fleet is.",
               },
               {
                 num: "02",
                 icon: Phone,
                 title: "ORGANIZED CALLS",
-                desc: "Yellow pins for active. Green for completed. No chaos.",
+                desc: "Yellow pins for active. Green for completed. Zero chaos.",
               },
               {
                 num: "03",
                 icon: UserCheck,
                 title: "DRIVER STATUS",
-                desc: "LIVE/OFFLINE based on 15-second threshold. Always know who's available.",
+                desc: "LIVE or OFFLINE — 15-second threshold. Instant clarity.",
               },
               {
                 num: "04",
                 icon: Users,
                 title: "CALL ASSIGNMENT",
-                desc: "Dropdown assign drivers. Mark picked up. Track revenue.",
+                desc: "Assign drivers. Mark picked up. Track every fare.",
               },
               {
                 num: "05",
                 icon: Filter,
-                title: "FILTERING",
-                desc: "Today, 7/30 days, 6/12 months, custom range. Server-side fast.",
+                title: "SMART FILTERING",
+                desc: "By day, week, month, year, or custom range. Server-side fast.",
               },
               {
                 num: "06",
                 icon: RefreshCw,
                 title: "AUTO-REFRESH",
-                desc: "Dashboard updates every 3 seconds. No manual refresh needed.",
+                desc: "Dashboard updates every 3 seconds. No manual refresh.",
               },
             ].map((feature) => {
               const Icon = feature.icon;
@@ -519,7 +536,7 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      {/* CALL WORKFLOW SECTION */}
+      {/* CALL WORKFLOW */}
       <section
         id="workflow"
         className="py-16 md:py-24"
@@ -527,39 +544,38 @@ export default function AboutUsPage() {
         data-testid="section-workflow"
       >
         <div className="max-w-6xl mx-auto px-6">
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-center mb-12"
-            data-testid="text-workflow-title"
-          >
-            CALL WORKFLOW
-          </h2>
+          <div className="text-center mb-12">
+            <span
+              className="inline-block px-4 py-1 text-xs font-black tracking-wider mb-4"
+              style={{ backgroundColor: BLACK, color: "#fff" }}
+            >
+              PROCESS
+            </span>
+            <h2
+              className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight"
+              data-testid="text-workflow-title"
+            >
+              CALL WORKFLOW
+            </h2>
+          </div>
           {/* Desktop: horizontal flow */}
           <div className="hidden md:flex items-start justify-center gap-2">
-            {[
-              {
-                title: "ENTER CUSTOMER INFO",
-                desc: "Name, phone, address",
-              },
-              { title: "PIN PREVIEW", desc: "Map preview of location" },
-              { title: "DROP PIN", desc: "Confirm pickup point" },
-              { title: "ASSIGN DRIVER", desc: "Select from dropdown" },
-              { title: "PICKED UP", desc: "Mark call as picked up" },
-              { title: "REVENUE LOGGED", desc: "Fare tracked automatically" },
-            ].map((step, i) => (
+            {WORKFLOW_STEPS.map((step, i) => (
               <div key={step.title} className="flex items-center gap-2">
                 <div
-                  className="border-3 p-4 min-w-[140px] text-center"
+                  className="p-4 min-w-[130px] text-center"
                   style={{
                     backgroundColor: YELLOW,
                     borderColor: BLACK,
                     borderWidth: "3px",
+                    borderStyle: "solid",
                   }}
                   data-testid={`card-workflow-step-${i + 1}`}
                 >
                   <h4 className="text-xs font-black mb-1">{step.title}</h4>
                   <p className="text-[10px]">{step.desc}</p>
                 </div>
-                {i < 5 && (
+                {i < WORKFLOW_STEPS.length - 1 && (
                   <ArrowRight className="w-5 h-5 flex-shrink-0" />
                 )}
               </div>
@@ -567,17 +583,7 @@ export default function AboutUsPage() {
           </div>
           {/* Mobile: vertical flow */}
           <div className="flex md:hidden flex-col items-center gap-2">
-            {[
-              {
-                title: "ENTER CUSTOMER INFO",
-                desc: "Name, phone, address",
-              },
-              { title: "PIN PREVIEW", desc: "Map preview of location" },
-              { title: "DROP PIN", desc: "Confirm pickup point" },
-              { title: "ASSIGN DRIVER", desc: "Select from dropdown" },
-              { title: "PICKED UP", desc: "Mark call as picked up" },
-              { title: "REVENUE LOGGED", desc: "Fare tracked automatically" },
-            ].map((step, i) => (
+            {WORKFLOW_STEPS.map((step, i) => (
               <div
                 key={step.title}
                 className="flex flex-col items-center gap-2"
@@ -595,14 +601,19 @@ export default function AboutUsPage() {
                   <h4 className="text-xs font-black mb-1">{step.title}</h4>
                   <p className="text-[10px]">{step.desc}</p>
                 </div>
-                {i < 5 && <ArrowDown className="w-5 h-5" />}
+                {i < WORKFLOW_STEPS.length - 1 && (
+                  <ArrowDown className="w-5 h-5" />
+                )}
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* MAP & FILTERING SECTION */}
+      {/* DIVIDER */}
+      <div className="h-1" style={{ backgroundColor: YELLOW }} />
+
+      {/* MAP & FILTERING */}
       <section
         id="map-filtering"
         className="py-16 md:py-24"
@@ -628,37 +639,27 @@ export default function AboutUsPage() {
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: YELLOW }} />
-                  <span>
-                    <strong>Yellow pins</strong> = Active calls
-                  </span>
+                  <span><strong>Yellow pins</strong> = Active calls</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 text-green-500" />
-                  <span>
-                    <strong>Green pins</strong> = Completed calls
-                  </span>
+                  <span><strong>Green pins</strong> = Completed calls</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Filter className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    <strong>Server-side filtering by:</strong> Today, Last 7
-                    Days, Last 30 Days, Last 6 Months, Last 12 Months, All
-                    Time, Custom Range
-                  </span>
+                  <span><strong>Filter by:</strong> Today, 7/30 days, 6/12 months, All Time, or Custom</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <RefreshCw className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Auto-refresh dashboard every 3 seconds</span>
+                  <span>Auto-refresh every 3 seconds</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Navigation className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>
-                    Driver LIVE/OFFLINE based on unified 15-second threshold
-                  </span>
+                  <span>LIVE/OFFLINE status — 15-second threshold</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Clock className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <span>Real-time 'Last Seen' updates every second</span>
+                  <span>Last Seen updates every second</span>
                 </li>
               </ul>
             </div>
@@ -674,7 +675,7 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      {/* TECH STACK SECTION */}
+      {/* TECH STACK */}
       <section
         id="tech-stack"
         className="py-16 md:py-24"
@@ -692,15 +693,9 @@ export default function AboutUsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             <div className="space-y-4">
               {[
-                {
-                  label: "Frontend",
-                  value: "React + TypeScript + Tailwind CSS",
-                },
+                { label: "Frontend", value: "React + TypeScript + Tailwind CSS" },
                 { label: "Backend", value: "Express.js (Node.js)" },
-                {
-                  label: "Database",
-                  value: "PostgreSQL + Drizzle ORM",
-                },
+                { label: "Database", value: "PostgreSQL + Drizzle ORM" },
                 { label: "Maps", value: "Mapbox GL JS" },
               ].map((item) => (
                 <div key={item.label} className="flex items-start gap-4">
@@ -724,24 +719,15 @@ export default function AboutUsPage() {
               </h3>
               <ul className="space-y-3 text-sm">
                 <li className="flex items-start gap-2">
-                  <RefreshCw
-                    className="w-4 h-4 mt-0.5 flex-shrink-0"
-                    style={{ color: YELLOW }}
-                  />
+                  <RefreshCw className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: YELLOW }} />
                   <span>Live polling (3-second intervals)</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <Navigation
-                    className="w-4 h-4 mt-0.5 flex-shrink-0"
-                    style={{ color: YELLOW }}
-                  />
+                  <Navigation className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: YELLOW }} />
                   <span>Ephemeral in-memory driver GPS</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <CheckSquare
-                    className="w-4 h-4 mt-0.5 flex-shrink-0"
-                    style={{ color: YELLOW }}
-                  />
+                  <CheckSquare className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: YELLOW }} />
                   <span>Persistent call records in PostgreSQL</span>
                 </li>
               </ul>
@@ -750,71 +736,39 @@ export default function AboutUsPage() {
         </div>
       </section>
 
-      {/* DENOKO COOPERATIVE SECTION */}
+      {/* DIVIDER */}
+      <div className="h-1" style={{ backgroundColor: YELLOW }} />
+
+      {/* COOPERATIVE — SINGLE MERGED SECTION */}
       <section
         id="cooperative"
         className="py-16 md:py-24"
-        style={{ backgroundColor: YELLOW, color: BLACK }}
+        style={{ backgroundColor: "#f5f5f5", color: BLACK }}
         data-testid="section-cooperative"
       >
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          <div className="mb-8" data-testid="cooperative-logo">
-            <TaxiLogo size="lg" />
-          </div>
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight leading-tight mb-8"
-            data-testid="text-cooperative-title"
-          >
-            BUILT BY COOPERATIVES,
-            <br />
-            FOR COOPERATIVES
-          </h2>
-          <p className="text-base md:text-lg max-w-3xl mx-auto mb-10">
-            Denoko Taxi is part of the Denoko Cooperative — technology that
-            empowers workers, not replaces them. We believe taxi companies
-            deserve enterprise-level tools without losing human connection.
-          </p>
-          <a
-            href="#cooperative-mission"
-            className="inline-block px-8 py-4 font-black text-sm tracking-wider border-2"
-            style={{
-              backgroundColor: BLACK,
-              color: YELLOW,
-              borderColor: YELLOW,
-            }}
-            data-testid="link-learn-cooperative"
-          >
-            LEARN ABOUT DENOKO COOPERATIVE →
-          </a>
-          <p className="text-sm mt-6 opacity-70">
-            Read our mission at /about-us
-          </p>
-        </div>
-      </section>
-
-      {/* COOPERATIVE MISSION SECTION */}
-      <section
-        id="cooperative-mission"
-        className="py-16 md:py-24"
-        style={{ backgroundColor: YELLOW, color: BLACK }}
-        data-testid="section-cooperative-mission"
-      >
         <div className="max-w-6xl mx-auto px-6">
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight mb-8"
-            data-testid="text-cooperative-mission-title"
-          >
-            THE DENOKO COOPERATIVE
-          </h2>
-          <p className="text-base md:text-lg mb-8 max-w-3xl">
-            The Denoko Cooperative is a mission-driven organization building
-            technology that serves workers, communities, and cooperative
-            enterprises. We develop tools that put ownership and control in the
-            hands of the people who use them every day.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div>
-              <h3 className="text-lg font-black mb-4">We believe:</h3>
+          <div className="text-center mb-12">
+            <div className="mb-6" data-testid="cooperative-logo">
+              <TaxiLogo size="lg" />
+            </div>
+            <h2
+              className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight leading-tight mb-6"
+              data-testid="text-cooperative-title"
+            >
+              THE DENOKO COOPERATIVE
+            </h2>
+            <p className="text-base md:text-lg max-w-2xl mx-auto">
+              Technology that empowers workers, not replaces them. Enterprise-level
+              tools without losing the human connection.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
+            <div
+              id="cooperative-mission"
+              data-testid="section-cooperative-mission"
+            >
+              <h3 className="text-lg font-black mb-4">WE BELIEVE</h3>
               <ul className="space-y-3 text-base">
                 <li className="flex items-start gap-2">
                   <CheckSquare className="w-5 h-5 mt-0.5 flex-shrink-0" />
@@ -826,9 +780,7 @@ export default function AboutUsPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckSquare className="w-5 h-5 mt-0.5 flex-shrink-0" />
-                  <span>
-                    Taxi companies deserve systems, not spreadsheets
-                  </span>
+                  <span>Taxi companies deserve systems, not spreadsheets</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <CheckSquare className="w-5 h-5 mt-0.5 flex-shrink-0" />
@@ -837,21 +789,21 @@ export default function AboutUsPage() {
               </ul>
             </div>
             <div>
-              <h3 className="text-lg font-black mb-4 italic">Our ethos:</h3>
+              <h3 className="text-lg font-black mb-4 italic">OUR ETHOS</h3>
               <ul className="space-y-3 text-base italic">
                 <li>Technology should serve people.</li>
                 <li>Organization creates opportunity.</li>
                 <li>Ownership builds generational strength.</li>
               </ul>
+              <p className="text-xl md:text-2xl font-black mt-8">
+                Building the future of work, together.
+              </p>
             </div>
           </div>
-          <p className="text-xl md:text-2xl font-black mt-12">
-            Building the future of work, together.
-          </p>
         </div>
       </section>
 
-      {/* TESTIMONIALS SECTION */}
+      {/* TESTIMONIALS */}
       <section
         id="testimonials"
         className="py-16 md:py-24"
@@ -859,36 +811,42 @@ export default function AboutUsPage() {
         data-testid="section-testimonials"
       >
         <div className="max-w-6xl mx-auto px-6">
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-center mb-12"
-            data-testid="text-testimonials-title"
-          >
-            TRUSTED BY TAXI COOPERATIVES
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="text-center mb-12">
+            <span
+              className="inline-block px-4 py-1 text-xs font-black tracking-wider mb-4"
+              style={{ backgroundColor: BLACK, color: "#fff" }}
+            >
+              SOCIAL PROOF
+            </span>
+            <h2
+              className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight"
+              data-testid="text-testimonials-title"
+            >
+              TRUSTED BY TAXI COOPERATIVES
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
                 company: "NYC Taxi Cooperative",
                 quote:
-                  "Finally, a dispatch system that doesn't overcomplicate things. Our drivers love how simple it is.",
+                  "A dispatch system that doesn't overcomplicate things. Our drivers love the simplicity.",
               },
               {
                 company: "Chicago Metro Cabs",
                 quote:
-                  "Real-time visibility changed everything. We know exactly where every driver is.",
+                  "We know exactly where every driver is. That visibility changed everything.",
               },
               {
                 company: "Bay Area Taxi Alliance",
                 quote:
-                  "No more radio chaos. Organized calls, clear assignments, better revenue.",
+                  "No more radio chaos. Clear assignments, better revenue.",
               },
             ].map((testimonial) => (
               <div
                 key={testimonial.company}
                 className="p-6 md:p-8"
-                style={{
-                  border: `4px double ${BLACK}`,
-                }}
+                style={{ border: `4px double ${BLACK}` }}
                 data-testid={`card-testimonial-${testimonial.company.toLowerCase().replace(/\s+/g, "-")}`}
               >
                 <p className="text-sm mb-6 italic">"{testimonial.quote}"</p>
@@ -896,13 +854,13 @@ export default function AboutUsPage() {
               </div>
             ))}
           </div>
-          <p className="text-center text-sm">
-            Join taxi companies using cooperative technology
-          </p>
         </div>
       </section>
 
-      {/* PRICING SECTION */}
+      {/* DIVIDER */}
+      <div className="h-1" style={{ backgroundColor: BLACK }} />
+
+      {/* PRICING */}
       <section
         id="pricing"
         className="py-16 md:py-24"
@@ -910,12 +868,20 @@ export default function AboutUsPage() {
         data-testid="section-pricing"
       >
         <div className="max-w-6xl mx-auto px-6">
-          <h2
-            className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-center mb-12"
-            data-testid="text-pricing-title"
-          >
-            SIMPLE PRICING
-          </h2>
+          <div className="text-center mb-12">
+            <span
+              className="inline-block px-4 py-1 text-xs font-black tracking-wider mb-4"
+              style={{ backgroundColor: BLACK, color: "#fff" }}
+            >
+              PLANS
+            </span>
+            <h2
+              className="text-3xl md:text-4xl lg:text-5xl font-black tracking-tight"
+              data-testid="text-pricing-title"
+            >
+              SIMPLE PRICING
+            </h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {/* Starter Plan */}
             <div
@@ -969,31 +935,19 @@ export default function AboutUsPage() {
               <p className="text-sm font-black mb-6">/month</p>
               <ul className="space-y-2 text-sm mb-8">
                 <li className="flex items-center gap-2">
-                  <CheckSquare
-                    className="w-4 h-4 flex-shrink-0"
-                    style={{ color: YELLOW }}
-                  />
+                  <CheckSquare className="w-4 h-4 flex-shrink-0" style={{ color: YELLOW }} />
                   Unlimited drivers
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckSquare
-                    className="w-4 h-4 flex-shrink-0"
-                    style={{ color: YELLOW }}
-                  />
+                  <CheckSquare className="w-4 h-4 flex-shrink-0" style={{ color: YELLOW }} />
                   Priority support
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckSquare
-                    className="w-4 h-4 flex-shrink-0"
-                    style={{ color: YELLOW }}
-                  />
+                  <CheckSquare className="w-4 h-4 flex-shrink-0" style={{ color: YELLOW }} />
                   Custom dispatch codes
                 </li>
                 <li className="flex items-center gap-2">
-                  <CheckSquare
-                    className="w-4 h-4 flex-shrink-0"
-                    style={{ color: YELLOW }}
-                  />
+                  <CheckSquare className="w-4 h-4 flex-shrink-0" style={{ color: YELLOW }} />
                   Phone support
                 </li>
               </ul>
@@ -1007,7 +961,7 @@ export default function AboutUsPage() {
             </div>
           </div>
           <p className="text-center text-sm italic mt-8">
-            All plans include 14-day free trial. No credit card required.
+            14-day free trial. No credit card required.
           </p>
         </div>
       </section>
